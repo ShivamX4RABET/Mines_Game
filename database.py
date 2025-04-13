@@ -57,20 +57,24 @@ class UserDatabase:
         self.data["users"][str(user_id)]["balance"] += amount
         self._save_data()
     
-    def get_last_daily(self, user_id: int):
-        """Get last daily bonus claim time."""
-        last = self.data["users"][str(user_id)]["last_daily"]
-        return datetime.datetime.fromisoformat(last) if last else None
+    def get_last_daily(self, user_id: int) -> Optional[datetime.datetime]:
+    """Safely get last daily claim time"""
+    user = self.data["users"].get(str(user_id))
+    if not user or "last_daily" not in user:
+        return None
+    return datetime.datetime.fromisoformat(user["last_daily"])
     
     def set_last_daily(self, user_id: int, time) -> None:
         """Set last daily bonus claim time."""
         self.data["users"][str(user_id)]["last_daily"] = time.isoformat()
         self._save_data()
     
-    def get_last_weekly(self, user_id: int):
-        """Get last weekly bonus claim time."""
-        last = self.data["users"][str(user_id)]["last_weekly"]
-        return datetime.datetime.fromisoformat(last) if last else None
+def get_last_weekly(self, user_id: int) -> Optional[datetime.datetime]:
+    """Safely get last weekly claim time"""
+    user = self.data["users"].get(str(user_id))
+    if not user or "last_weekly" not in user:
+        return None
+    return datetime.datetime.fromisoformat(user["last_weekly"])
     
     def set_last_weekly(self, user_id: int, time) -> None:
         """Set last weekly bonus claim time."""
