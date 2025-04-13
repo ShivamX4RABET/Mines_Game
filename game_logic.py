@@ -15,21 +15,21 @@ class MinesGame:
         self.current_multiplier = 1.0
         self.message_id = None
         self.board = self._generate_board()
-    
+
     def _generate_board(self) -> List[List[Tile]]:
-    """Generate a 5x5 board where all non-mine tiles are gems"""
-    board = [[Tile("💎") for _ in range(5)] for _ in range(5)]  # Start with all gems
-    
-    # Place bombs - these will overwrite gems
-    bomb_positions = random.sample(range(25), self.mines_count)
-    for pos in bomb_positions:
-        i, j = divmod(pos, 5)
-        board[i][j].value = "💣"
-    
-    return board
-    
+        """Generate a 5x5 board where all non-mine tiles are gems"""
+        board = [[Tile("💎") for _ in range(5)] for _ in range(5)]  # Start with all gems
+        
+        # Place bombs - these will overwrite gems
+        bomb_positions = random.sample(range(25), self.mines_count)
+        for pos in bomb_positions:
+            i, j = divmod(pos, 5)
+            board[i][j].value = "💣"
+        
+        return board
+
     def reveal_tile(self, i: int, j: int) -> bool:
-        """Reveal a tile and return True if safe/gem, False if bomb."""
+        """Reveal a tile and return True if safe/gem, False if bomb"""
         tile = self.board[i][j]
         tile.revealed = True
         
@@ -41,15 +41,15 @@ class MinesGame:
             self._update_multiplier()
             return True
         return True
-    
+
     def _reveal_all_mines_and_gems(self):
-        """Reveal all bombs and gems when game ends."""
+        """Reveal all bombs and gems when game ends"""
         for row in self.board:
             for tile in row:
                 if tile.value in ("💣", "💎"):
                     tile.revealed = True
-    
+
     def _update_multiplier(self):
-        """Update multiplier based on gems found."""
+        """Update multiplier based on gems found"""
         base_increase = 0.25 + (self.mines_count / 24) * 0.5
         self.current_multiplier = 1.0 + (self.gems_revealed * base_increase)
