@@ -1,6 +1,27 @@
 import random
+from telegram import InlineKeyboardButton
 from dataclasses import dataclass
 from typing import List
+
+def generate_game_grid(grid_state, revealed):
+    """
+    Create an interactive 5x5 grid with numbered buttons
+    Returns a list of button rows
+    """
+    buttons = []
+    for i in range(5):
+        row = []
+        for j in range(5):
+            if revealed[i][j]:
+                emoji = "💎" if grid_state[i][j] == "gem" else "💣"
+                row.append(InlineKeyboardButton(emoji, callback_data=f"revealed_{i}_{j}"))
+            else:
+                row.append(InlineKeyboardButton(f"{i+1}{j+1}", callback_data=f"tap_{i}_{j}"))
+        buttons.append(row)
+    
+    # Add Cashout button at bottom
+    buttons.append([InlineKeyboardButton("💰 Cash Out", callback_data="cashout_now")])
+    return buttons
 
 @dataclass
 class Tile:
