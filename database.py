@@ -52,40 +52,39 @@ class UserDatabase:
         self.data["users"][str(user_id)]["balance"] -= amount
         self._save_data()
     
-    def add_balance(self, user_id: int, amount: int) -> None:
-        """Add to user's balance."""
-        self.data["users"][str(user_id)]["balance"] += amount
-        self._save_data()
-    
     def get_last_daily(self, user_id: int) -> Optional[datetime.datetime]:
     """Safely get last daily claim time"""
-    user = self.data["users"].get(str(user_id))
+    user = self.data["users"].get(str(user_id))  # Fixed bracket
     if not user or "last_daily" not in user:
         return None
     try:
         return datetime.datetime.fromisoformat(user["last_daily"])
     except ValueError:
         return None
-    
-    def set_last_daily(self, user_id: int, time) -> None:
-        """Set last daily bonus claim time."""
-        self.data["users"][str(user_id)]["last_daily"] = time.isoformat()
-        self._save_data()
-    
+
+def set_last_daily(self, user_id: int, time) -> None:
+    """Set last daily bonus claim time."""
+    if str(user_id) not in self.data["users"]:
+        self.data["users"][str(user_id)] = {}
+    self.data["users"][str(user_id)]["last_daily"] = time.isoformat()
+    self._save_data()
+
 def get_last_weekly(self, user_id: int) -> Optional[datetime.datetime]:
     """Safely get last weekly claim time"""
-    user = self.data["users"].get(str(user_id))
+    user = self.data["users"].get(str(user_id))  # Fixed bracket
     if not user or "last_weekly" not in user:
         return None
     try:
         return datetime.datetime.fromisoformat(user["last_weekly"])
     except ValueError:
         return None
-    
-    def set_last_weekly(self, user_id: int, time) -> None:
-        """Set last weekly bonus claim time."""
-        self.data["users"][str(user_id)]["last_weekly"] = time.isoformat()
-        self._save_data()
+
+def set_last_weekly(self, user_id: int, time) -> None:
+    """Set last weekly bonus claim time."""
+    if str(user_id) not in self.data["users"]:
+        self.data["users"][str(user_id)] = {}
+    self.data["users"][str(user_id)]["last_weekly"] = time.isoformat()
+    self._save_data()
     
 def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, int]]:
     """Get top users by balance with proper username handling"""
