@@ -275,56 +275,80 @@ async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await handle_game_over(update, user_id, game, won=True, context=context)
 
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /daily command."""
+    """Handle daily bonus with cooldown message"""
     user_id = update.effective_user.id
     last_daily = db.get_last_daily(user_id)
     
-    if last_daily and (datetime.datetime.now() - last_daily).total_seconds() < 24 * 3600:
+    if last_daily:
         next_claim = last_daily + datetime.timedelta(hours=24)
-        await update.message.reply_text(
-            f"You've already claimed your daily bonus today.\n"
-            f"Next claim available at {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        return
+        if datetime.datetime.now() < next_claim:
+            remaining = next_claim - datetime.datetime.now()
+            await update.message.reply_text(
+                f"⏳ You've already claimed your daily bonus today!\n"
+                f"Next available in: {str(remaining).split('.')[0]}\n"
+                f"Next reset at: {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            return
     
-    amount = 50  # Daily bonus amount
+    amount = 50
     db.add_balance(user_id, amount)
     db.set_last_daily(user_id, datetime.datetime.now())
     await update.message.reply_text(
-        f"🎁 You claimed your daily bonus of {amount} Hiwa!\n"
-        f"New balance: {db.get_balance(user_id)} Hiwa"
+        f"🎁 <b>Daily Bonus Claimed!</b>\n"
+        f"+{amount} Hiwa added to your balance\n"
+        f"New balance: {db.get_balance(user_id)} Hiwa\n\n"
+        f"Next bonus available in 24 hours",
+        parse_mode='HTML'
     )
 
 async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /weekly command."""
+    """Handle weekly bonus with cooldown message"""
     user_id = update.effective_user.id
     last_weekly = db.get_last_weekly(user_id)
     
-    if last_weekly and (datetime.datetime.now() - last_weekly).total_seconds() < 7 * 24 * 3600:
+    if last_weekly:
         next_claim = last_weekly + datetime.timedelta(days=7)
-        await update.message.reply_text(
-            f"You've already claimed your weekly bonus this week.\n"
-            f"Next claim available at {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        return
+        if datetime.datetime.now() < next_claim:
+            remaining = next_claim - datetime.datetime.now()
+            await update.message.reply_text(
+                f"⏳ You've already claimed your weekly bonus this week!\n"
+                f"Next available in: {str(remaining).split('.')[0]}\n"
+                f"Next reset at: {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+            return
     
-    amount = 200  # Weekly bonus amount
+    amount = 200
     db.add_balance(user_id, amount)
     db.set_last_weekly(user_id, datetime.datetime.now())
     await update.message.reply_text(
-        f"🎁 You claimed your weekly bonus of {amount} Hiwa!\n"
-        f"New balance: {db.get_balance(user_id)} Hiwa"
+        f"🎁 <b>Weekly Bonus Claimed!</b>\n"
+        f"+{amount} Hiwa added to your balance\n"
+        f"New balance: {db.get_balance(user_id)} Hiwa\n\n"
+        f"Next bonus available in 7 days",
+        parse_mode='HTML'
     )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show the leaderboard."""
+    """Show a professional leaderboard"""
     top_users = db.get_top_users(10)
-    message = "🏆 *Top Players Leaderboard* 🏆\n\n"
     
-    for i, (user_id, username, balance) in enumerate(top_users, 1):
-        message += f"{i}. {username}: {balance} Hiwa\n"
+    if not top_users:
+        await update.message.reply_text("No players yet! Be the first to play!")
+        return
     
-    await update.message.reply_text(message, parse_mode='Markdown')
+    message = "🏆 <b>TOP PLAYERS LEADERBOARD</b> 🏆\n\n"
+    message += "<pre>"
+    message += "Rank  Player          Balance\n"
+    message += "---------------------------\n"
+    
+    for rank, (user_id, username, balance) in enumerate(top_users, 1):
+        username = username if username else f"User{user_id[:4]}"
+        message += f"{rank:<5}  {username[:12]:<12}  {balance:>7} Hiwa\n"
+    
+    message += "</pre>"
+    message += "\nPlay more to climb the ranks!"
+    
+    await update.message.reply_text(message, parse_mode='HTML')
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
