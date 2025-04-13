@@ -62,7 +62,10 @@ class UserDatabase:
     user = self.data["users"].get(str(user_id))
     if not user or "last_daily" not in user:
         return None
-    return datetime.datetime.fromisoformat(user["last_daily"])
+    try:
+        return datetime.datetime.fromisoformat(user["last_daily"])
+    except ValueError:
+        return None
     
     def set_last_daily(self, user_id: int, time) -> None:
         """Set last daily bonus claim time."""
@@ -74,7 +77,10 @@ def get_last_weekly(self, user_id: int) -> Optional[datetime.datetime]:
     user = self.data["users"].get(str(user_id))
     if not user or "last_weekly" not in user:
         return None
-    return datetime.datetime.fromisoformat(user["last_weekly"])
+    try:
+        return datetime.datetime.fromisoformat(user["last_weekly"])
+    except ValueError:
+        return None
     
     def set_last_weekly(self, user_id: int, time) -> None:
         """Set last weekly bonus claim time."""
