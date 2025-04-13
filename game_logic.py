@@ -17,25 +17,16 @@ class MinesGame:
         self.board = self._generate_board()
     
     def _generate_board(self) -> List[List[Tile]]:
-        """Generate a 5x5 board with gems and bombs."""
-        board = [[Tile("⬜️") for _ in range(5)] for _ in range(5)]
-        
-        # Place bombs
-        bomb_positions = random.sample(range(25), self.mines_count)
-        for pos in bomb_positions:
-            i, j = divmod(pos, 5)
-            board[i][j].value = "💣"
-        
-        # Place gems (3 gems)
-        gem_positions = random.sample(
-            [pos for pos in range(25) if pos not in bomb_positions],
-            3
-        )
-        for pos in gem_positions:
-            i, j = divmod(pos, 5)
-            board[i][j].value = "💎"
-        
-        return board
+    """Generate a 5x5 board where all non-mine tiles are gems"""
+    board = [[Tile("💎") for _ in range(5)] for _ in range(5)]  # Start with all gems
+    
+    # Place bombs - these will overwrite gems
+    bomb_positions = random.sample(range(25), self.mines_count)
+    for pos in bomb_positions:
+        i, j = divmod(pos, 5)
+        board[i][j].value = "💣"
+    
+    return board
     
     def reveal_tile(self, i: int, j: int) -> bool:
         """Reveal a tile and return True if safe/gem, False if bomb."""
