@@ -12,7 +12,7 @@ from game_logic import MinesGame
 from database import UserDatabase
 import config
 import datetime
-from typing import Dict
+from typing import Optional
 
 # Set up logging
 logging.basicConfig(
@@ -275,80 +275,113 @@ async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await handle_game_over(update, user_id, game, won=True, context=context)
 
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle daily bonus with cooldown message"""
+    """Handle daily bonus with proper cooldown message"""
     user_id = update.effective_user.id
-    last_daily = db.get_last_daily(user_id)
     
-    if last_daily:
-        next_claim = last_daily + datetime.timedelta(hours=24)
-        if datetime.datetime.now() < next_claim:
-            remaining = next_claim - datetime.datetime.now()
-            await update.message.reply_text(
-                f"⏳ You've already claimed your daily bonus today!\n"
-                f"Next available in: {str(remaining).split('.')[0]}\n"
-                f"Next reset at: {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            return
-    
-    amount = 50
-    db.add_balance(user_id, amount)
-    db.set_last_daily(user_id, datetime.datetime.now())
-    await update.message.reply_text(
-        f"🎁 <b>Daily Bonus Claimed!</b>\n"
-        f"+{amount} Hiwa added to your balance\n"
-        f"New balance: {db.get_balance(user_id)} Hiwa\n\n"
-        f"Next bonus available in 24 hours",
-        parse_mode='HTML'
-    )
+    try:
+        last_claim = db.get_last_daily(user_id)
+        now = datetime.datetime.now()
+        
+        if last_claim:
+            next_available = last_claim + datetime.timedelta(hours=24)
+            if now < next_available:
+                remaining = next_available - now
+                hours, remainder = divmod(remaining.seconds, 3600)
+                minutes, _ = divmod(remainder, 60)
+                
+                await update.message.reply_text(
+                    f"⏳ *Daily Bonus Already Claimed!*\n\n"
+                    f"You've already collected your daily bonus.\n"
+                    f"Next available in: *{hours}h {minutes}m*\n"
+                    f"Reset time: {next_available.strftime('%Y-%m-%d %H:%M:%S')}",
+                    parse_mode='Markdown'
+                )
+                return
+        
+        # Grant bonus if not claimed or cooldown passed
+        amount = 50
+        db.add_balance(user_id, amount)
+        db.set_last_daily(user_id, now)
+        
+        await update.message.reply_text(
+            f"🎁 *Daily Bonus Collected!*\n\n"
+            f"+{amount} Hiwa added to your balance\n"
+            f"New balance: *{db.get_balance(user_id)} Hiwa*\n\n"
+            f"Next bonus available in 24 hours",
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Daily bonus error: {e}")
+        await update.message.reply_text("❌ Error processing daily bonus. Please try again.")
 
 async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle weekly bonus with cooldown message"""
+    """Handle weekly bonus with proper cooldown message"""
     user_id = update.effective_user.id
-    last_weekly = db.get_last_weekly(user_id)
     
-    if last_weekly:
-        next_claim = last_weekly + datetime.timedelta(days=7)
-        if datetime.datetime.now() < next_claim:
-            remaining = next_claim - datetime.datetime.now()
-            await update.message.reply_text(
-                f"⏳ You've already claimed your weekly bonus this week!\n"
-                f"Next available in: {str(remaining).split('.')[0]}\n"
-                f"Next reset at: {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-            return
-    
-    amount = 200
-    db.add_balance(user_id, amount)
-    db.set_last_weekly(user_id, datetime.datetime.now())
-    await update.message.reply_text(
-        f"🎁 <b>Weekly Bonus Claimed!</b>\n"
-        f"+{amount} Hiwa added to your balance\n"
-        f"New balance: {db.get_balance(user_id)} Hiwa\n\n"
-        f"Next bonus available in 7 days",
-        parse_mode='HTML'
-    )
+    try:
+        last_claim = db.get_last_weekly(user_id)
+        now = datetime.datetime.now()
+        
+        if last_claim:
+            next_available = last_claim + datetime.timedelta(days=7)
+            if now < next_available:
+                remaining = next_available - now
+                days = remaining.days
+                hours, remainder = divmod(remaining.seconds, 3600)
+                minutes, _ = divmod(remainder, 60)
+                
+                await update.message.reply_text(
+                    f"⏳ *Weekly Bonus Already Claimed!*\n\n"
+                    f"You've already collected your weekly bonus.\n"
+                    f"Next available in: *{days}d {hours}h {minutes}m*\n"
+                    f"Reset time: {next_available.strftime('%Y-%m-%d %H:%M:%S')}",
+                    parse_mode='Markdown'
+                )
+                return
+        
+        # Grant bonus if not claimed or cooldown passed
+        amount = 200
+        db.add_balance(user_id, amount)
+        db.set_last_weekly(user_id, now)
+        
+        await update.message.reply_text(
+            f"🎁 *Weekly Bonus Collected!*\n\n"
+            f"+{amount} Hiwa added to your balance\n"
+            f"New balance: *{db.get_balance(user_id)} Hiwa*\n\n"
+            f"Next bonus available in 7 days",
+            parse_mode='Markdown'
+        )
+        
+    except Exception as e:
+        logger.error(f"Weekly bonus error: {e}")
+        await update.message.reply_text("❌ Error processing weekly bonus. Please try again.")
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show a professional leaderboard"""
-    top_users = db.get_top_users(10)
-    
-    if not top_users:
-        await update.message.reply_text("No players yet! Be the first to play!")
-        return
-    
-    message = "🏆 <b>TOP PLAYERS LEADERBOARD</b> 🏆\n\n"
-    message += "<pre>"
-    message += "Rank  Player          Balance\n"
-    message += "---------------------------\n"
-    
-    for rank, (user_id, username, balance) in enumerate(top_users, 1):
-        username = username if username else f"User{user_id[:4]}"
-        message += f"{rank:<5}  {username[:12]:<12}  {balance:>7} Hiwa\n"
-    
-    message += "</pre>"
-    message += "\nPlay more to climb the ranks!"
-    
-    await update.message.reply_text(message, parse_mode='HTML')
+    """Debugged leaderboard command"""
+    try:
+        top_users = db.get_top_users(10)
+        logger.info(f"Leaderboard data fetched: {top_users}")  # Debug logging
+        
+        if not top_users:
+            await update.message.reply_text("🏆 Leaderboard is empty! Be the first to play!")
+            return
+
+        message = ["🏆 <b>TOP PLAYERS</b> 🏆", "", "<pre>"]
+        headers = ["Rank", "Player", "Balance"]
+        message.append(f"{headers[0]:<5} {headers[1]:<15} {headers[2]:>10}")
+        message.append("-"*35)
+        
+        for rank, (user_id, username, balance) in enumerate(top_users, 1):
+            display_name = username if username else f"User{str(user_id)[:4]}"
+            message.append(f"{rank:<5} {display_name[:15]:<15} {balance:>10} Hiwa")
+        
+        message.extend(["</pre>", "", "Play /mine to climb ranks!"])
+        await update.message.reply_text("\n".join(message), parse_mode='HTML')
+        
+    except Exception as e:
+        logger.error(f"Leaderboard error: {e}")
+        await update.message.reply_text("⚠️ Couldn't fetch leaderboard. Please try later.")
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
