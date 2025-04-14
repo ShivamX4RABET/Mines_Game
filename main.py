@@ -151,7 +151,7 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
     
     if mines < 3 or mines > 24:
-        await update.message.reply_text("Number of mines must be between 3 and 24.")
+        await update_message.reply_text("Number of mines must be between 3 and 24.")
         return
     
     # Check balance
@@ -164,7 +164,7 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     game = MinesGame(amount, mines)
     user_games[user_id] = game
     
-    # Show initial game board
+    # Send initial game board - THIS IS THE CRUCIAL FIX
     await send_game_board(update, user_id, game, context)
 
 async def update_game_board(update: Update, game: MinesGame, context: ContextTypes.DEFAULT_TYPE) -> None:
