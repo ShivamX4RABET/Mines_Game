@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 db = UserDatabase('users.json')
 
 # Game states
-user_games: Dict[int, MinesGame] = {}
+user_games: dict[int, MinesGame] = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
