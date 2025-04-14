@@ -94,10 +94,12 @@ async def send_game_board(update: Update, user_id: int, game: MinesGame, context
         keyboard.append(row)
     
     if game.gems_revealed >= 2:
-        keyboard.append([InlineKeyboardButton(
-            f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
-            callback_data="cashout"
-        )])
+        keyboard.append([
+            InlineKeyboardButton(
+                f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
+                callback_data="cashout"
+            )
+        ])
     
     text = (
         f"💎 Mines Game 💣\n\n"
@@ -105,7 +107,7 @@ async def send_game_board(update: Update, user_id: int, game: MinesGame, context
         f"Mines: {game.mines_count}\n"
         f"Gems Found: {game.gems_revealed}/3\n"
         f"Multiplier: {game.current_multiplier:.2f}x\n"
-        f"Potential Win: {game.bet_amount * game.current_multiplier:.2f} Hiwa"
+        f"Potential Win: {int(game.bet_amount * game.current_multiplier)} Hiwa"
     )
     
     try:
@@ -193,38 +195,6 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     # Show initial game board
     await send_game_board(update, user_id, game, context)
 
-async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle tile clicks and cashouts."""
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    if user_id not in user_games:
-        await query.edit_message_text("Game expired. Use /mine to start new")
-        return
-    
-    game = user_games[user_id]
-    
-    if query.data.startswith("reveal_"):
-        _, i, j = query.data.split("_")
-        i, j = int(i), int(j)
-        
-        # Immediately reveal the clicked tile
-        if game.reveal_tile(i, j):
-            # Safe or gem - update board
-            await send_game_board(update, user_id, game, context)
-        else:
-            # Bomb hit - show final board
-            await handle_game_over(update, user_id, game, False, context)
-    
-    elif query.data == "cashout":
-        if game.gems_revealed >= 2:
-            await handle_game_over(update, user_id, game, True, context)
-        else:
-            await query.answer("Need 2+ gems to cash out!", show_alert=True)
-    elif query.data == "new_game":
-        # Handle "Play Again" button
-        await query.edit_message_text("Use /mine <amount> <mines> to start a new game!")
 
 async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle game over (win or loss)."""
@@ -244,6 +214,31 @@ async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: b
             f"New Balance: {db.get_balance(user_id)} Hiwa\n\n"
             "Try again with /mine"
         )
+
+    async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle cashout button and tile clicks"""
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    if user_id not in user_games:
+        await query.edit_message_text("Game expired. Use /mine to start new")
+        return
+    
+    game = user_games[user_id]
+    
+    if query.data == "cashout":
+        if game.gems_revealed >= 2:
+            await handle_game_over(update, user_id, game, won=True, context=context)
+        else:
+            await query.answer("❌ You need at least 2 gems to cash out!", show_alert=True)
+    elif query.data.startswith("reveal_"):
+        _, i, j = query.data.split("_")
+        i, j = int(i), int(j)
+        if game.reveal_tile(i, j):
+            await send_game_board(update, user_id, game, context)
+        else:
+            await handle_game_over(update, user_id, game, won=False, context=context)
     
     # Show final board
     keyboard = []
@@ -261,18 +256,17 @@ async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: b
     del user_games[user_id]
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /cashout command."""
+    """Handle /cashout command"""
     user_id = update.effective_user.id
     if user_id not in user_games:
-        await update.message.reply_text("You don't have an active game to cash out.")
+        await update.message.reply_text("No active game to cash out")
         return
     
     game = user_games[user_id]
-    if game.gems_revealed < 2:
-        await update.message.reply_text("You need at least 2 gems revealed to cash out!")
-        return
-    
-    await handle_game_over(update, user_id, game, won=True, context=context)
+    if game.gems_revealed >= 2:
+        await handle_game_over(update, user_id, game, won=True, context=context)
+    else:
+        await update.message.reply_text("❌ You need at least 2 gems to cash out!")
 
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle daily bonus with proper cooldown message"""
