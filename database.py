@@ -35,7 +35,7 @@ class UserDatabase:
         self.data["users"][str(user_id)]["balance"] -= amount
         self._save_data()
     
-    def set_balance(self, user_id: int, amount: int) -> bool:
+def set_balance(self, user_id: int, amount: int) -> bool:
     """Set user balance"""
     if not self.user_exists(user_id):
         return False
