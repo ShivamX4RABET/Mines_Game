@@ -18,18 +18,16 @@ class MinesGame:
 
     def _generate_board(self) -> List[List[Tile]]:
         """Generate a 5x5 board where all non-mine tiles are gems"""
-        board = [[Tile("💎") for _ in range(5)] for _ in range(5)]  # Start with all gems
+        board = [[Tile("💎") for _ in range(5)] for _ in range(5)]
         
-        # Place bombs - these will overwrite gems
         bomb_positions = random.sample(range(25), self.mines_count)
         for pos in bomb_positions:
             i, j = divmod(pos, 5)
             board[i][j].value = "💣"
-        
         return board
 
     def reveal_tile(self, i: int, j: int) -> bool:
-        """Reveal a tile and return True if safe/gem, False if bomb"""
+        """Reveal tile and return True if gem/safe, False if bomb"""
         tile = self.board[i][j]
         tile.revealed = True
         
@@ -42,15 +40,15 @@ class MinesGame:
             return True
         return True
 
-    def _reveal_all_mines_and_gems(self):
+    def _update_multiplier(self) -> float:
+        """Calculate multiplier and return integer Hiwa amounts"""
+        base_increase = 0.25 + (self.mines_count / 24) * 0.5
+        self.current_multiplier = 1.0 + (self.gems_revealed * base_increase)
+        return self.current_multiplier
+
+    def _reveal_all_mines_and_gems(self) -> None:
         """Reveal all bombs and gems when game ends"""
         for row in self.board:
             for tile in row:
                 if tile.value in ("💣", "💎"):
                     tile.revealed = True
-
-    def _update_multiplier(self):
-    """Calculate multiplier and return integer Hiwa amounts"""
-    base_increase = 0.25 + (self.mines_count / 24) * 0.5
-    self.current_multiplier = 1.0 + (self.gems_revealed * base_increase)
-    return self.current_multiplier
