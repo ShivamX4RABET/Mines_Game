@@ -106,7 +106,7 @@ def set_balance(self, user_id: int, amount: int) -> bool:
             username = data.get("username", f"User{user_id[:4]}")
             users.append((int(user_id), username, data["balance"]))
         return sorted(users, key=lambda x: x[2], reverse=True)[:limit]
-    
+
     def get_user_id_by_username(self, username: str) -> Optional[int]:
     """Find user ID by username (case insensitive)"""
     username = username.lower().strip('@')
