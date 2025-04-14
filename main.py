@@ -215,38 +215,43 @@ async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: b
             "Try again with /mine"
         )
 
-  async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle cashout button and tile clicks"""
-    query = update.callback_query
-    await query.answer()
-    
-    user_id = query.from_user.id
-    
-    # Check if user has an active game
-    if user_id not in user_games:
-        await query.edit_message_text("❌ No active game! Start with /mine")
-        return
-    
-    game = user_games[user_id]
-    
-    # Handle cashout button
-    if query.data == "cashout":
-        if game.gems_revealed >= 2:
-            win_amount = int(game.bet_amount * game.current_multiplier)
-            db.add_balance(user_id, win_amount)
-            await handle_game_over(update, user_id, game, won=True, context=context)
-        else:
-            await query.answer("You need at least 2 gems to cash out!", show_alert=True)
-    
-    # Handle tile reveals
-    elif query.data.startswith("reveal_"):
-        _, i, j = query.data.split("_")
-        i, j = int(i), int(j)
+    try:
+        query = update.callback_query
+        await query.answer()
         
-        if game.reveal_tile(i, j):
-            await send_game_board(update, user_id, game, context)
-        else:
-            await handle_game_over(update, user_id, game, won=False, context=context)
+        user_id = query.from_user.id
+        
+        # Check active game
+        if user_id not in user_games:
+            await query.edit_message_text("🚫 No active game! Use /mine to start")
+            return
+        
+        game = user_games[user_id]
+        
+        # Cashout handling
+        if query.data == "cashout":
+            if game.gems_revealed >= 2:
+                win_amount = int(game.bet_amount * game.current_multiplier)
+                db.add_balance(user_id, win_amount)
+                await handle_game_over(update, user_id, game, won=True, context=context)
+            else:
+                await query.answer("⚠️ Need 2+ gems to cash out!", show_alert=True)
+        
+        # Tile reveal handling
+        elif query.data.startswith("reveal_"):
+            _, i, j = query.data.split("_")
+            i, j = int(i), int(j)
+            
+            if game.reveal_tile(i, j):
+                await send_game_board(update, user_id, game, context)
+            else:
+                await handle_game_over(update, user_id, game, won=False, context=context)
+                
+    except Exception as e:
+        logger.error(f"Button click error: {e}")
+        await query.edit_message_text("❌ Error processing action. Try again.")
     
     # Show final board
     keyboard = []
