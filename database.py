@@ -1,5 +1,6 @@
 import json
 import os
+import datetime
 from typing import List, Tuple, Optional, Dict, Any
 
 class UserDatabase:
@@ -53,52 +54,52 @@ class UserDatabase:
         self._save_data()
     
     def get_last_daily(self, user_id: int) -> Optional[datetime.datetime]:
-    """Safely get last daily claim time"""
-    user = self.data["users"].get(str(user_id))  # Fixed bracket
-    if not user or "last_daily" not in user:
-        return None
-    try:
-        return datetime.datetime.fromisoformat(user["last_daily"])
-    except ValueError:
-        return None
-
-def set_last_daily(self, user_id: int, time) -> None:
-    """Set last daily bonus claim time."""
-    if str(user_id) not in self.data["users"]:
-        self.data["users"][str(user_id)] = {}
-    self.data["users"][str(user_id)]["last_daily"] = time.isoformat()
-    self._save_data()
-
-def get_last_weekly(self, user_id: int) -> Optional[datetime.datetime]:
-    """Safely get last weekly claim time"""
-    user = self.data["users"].get(str(user_id))  # Fixed bracket
-    if not user or "last_weekly" not in user:
-        return None
-    try:
-        return datetime.datetime.fromisoformat(user["last_weekly"])
-    except ValueError:
-        return None
-
-def set_last_weekly(self, user_id: int, time) -> None:
-    """Set last weekly bonus claim time."""
-    if str(user_id) not in self.data["users"]:
-        self.data["users"][str(user_id)] = {}
-    self.data["users"][str(user_id)]["last_weekly"] = time.isoformat()
-    self._save_data()
+        """Safely get last daily claim time."""
+        user = self.data["users"].get(str(user_id))
+        if not user or "last_daily" not in user:
+            return None
+        try:
+            return datetime.datetime.fromisoformat(user["last_daily"])
+        except ValueError:
+            return None
     
-def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, int]]:
-    """Get top users by balance with proper username handling"""
-    users = []
-    for user_id, data in self.data["users"].items():
-        username = data.get("username", f"User{user_id[:4]}")
-        users.append((int(user_id), username, data["balance"]))
-    return sorted(users, key=lambda x: x[2], reverse=True)[:limit]
+    def set_last_daily(self, user_id: int, time: datetime.datetime) -> None:
+        """Set last daily bonus claim time."""
+        if str(user_id) not in self.data["users"]:
+            self.add_user(user_id, f"User{user_id}", 100)
+        self.data["users"][str(user_id)]["last_daily"] = time.isoformat()
+        self._save_data()
+    
+    def get_last_weekly(self, user_id: int) -> Optional[datetime.datetime]:
+        """Safely get last weekly claim time."""
+        user = self.data["users"].get(str(user_id))
+        if not user or "last_weekly" not in user:
+            return None
+        try:
+            return datetime.datetime.fromisoformat(user["last_weekly"])
+        except ValueError:
+            return None
+    
+    def set_last_weekly(self, user_id: int, time: datetime.datetime) -> None:
+        """Set last weekly bonus claim time."""
+        if str(user_id) not in self.data["users"]:
+            self.add_user(user_id, f"User{user_id}", 100)
+        self.data["users"][str(user_id)]["last_weekly"] = time.isoformat()
+        self._save_data()
+    
+    def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, int]]:
+        """Get top users by balance."""
+        users = []
+        for user_id, data in self.data["users"].items():
+            username = data.get("username", f"User{user_id[:4]}")
+            users.append((int(user_id), username, data["balance"]))
+        return sorted(users, key=lambda x: x[2], reverse=True)[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
         username = username.lower()
         for user_id, data in self.data["users"].items():
-            if data["username"].lower() == username:
+            if data.get("username", "").lower() == username:
                 return int(user_id)
         return None
     
