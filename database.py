@@ -105,12 +105,12 @@ class UserDatabase:
         return sorted(users, key=lambda x: x[2], reverse=True)[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
-        """Get user ID by username."""
-        username = username.lower()
-        for user_id, data in self.data["users"].items():
-            if data.get("username", "").lower() == username:
-                return int(user_id)
-        return None
+    """Find user ID by username (case insensitive)"""
+    username = username.lower().strip('@')
+    for user_id, user_data in self.data.items():
+        if 'username' in user_data and user_data['username'].lower() == username:
+            return user_id
+    return None
     
     def get_all_users(self) -> List[int]:
         """Get all user IDs."""
