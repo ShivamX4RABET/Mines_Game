@@ -12,7 +12,6 @@ class UserDatabase:
         """Load user data from JSON file."""
         if not os.path.exists(self.filename):
             return {"users": {}}
-        
         with open(self.filename, 'r') as f:
             return json.load(f)
     
@@ -21,6 +20,26 @@ class UserDatabase:
         with open(self.filename, 'w') as f:
             json.dump(self.data, f, indent=2)
     
+    # ADD THESE METHODS FOR INTEGER HIWA HANDLING:
+    def add_balance(self, user_id: int, amount: int) -> None:
+        """Add whole number Hiwa to balance (no decimals)"""
+        amount = int(amount)  # Force integer conversion
+        if str(user_id) not in self.data["users"]:
+            self.add_user(user_id, f"User{user_id}", 0)
+        self.data["users"][str(user_id)]["balance"] += amount
+        self._save_data()
+    
+    def deduct_balance(self, user_id: int, amount: int) -> None:
+        """Deduct whole number Hiwa from balance (no decimals)"""
+        amount = int(amount)  # Force integer conversion
+        self.data["users"][str(user_id)]["balance"] -= amount
+        self._save_data()
+    
+    def set_balance(self, user_id: int, amount: int) -> None:
+        """Set balance to whole number Hiwa (no decimals)"""
+        self.data["users"][str(user_id)]["balance"] = int(amount)
+        self._save_data()
+
     def user_exists(self, user_id: int) -> bool:
         """Check if a user exists in the database."""
         return str(user_id) in self.data["users"]
@@ -39,19 +58,9 @@ class UserDatabase:
         """Get a user's balance."""
         return self.data["users"][str(user_id)]["balance"]
     
-    def set_balance(self, user_id: int, amount: int) -> None:
-        """Set a user's balance."""
-        self.data["users"][str(user_id)]["balance"] = amount
-        self._save_data()
-    
     def has_sufficient_balance(self, user_id: int, amount: int) -> bool:
         """Check if user has sufficient balance."""
         return self.get_balance(user_id) >= amount
-    
-    def deduct_balance(self, user_id: int, amount: int) -> None:
-        """Deduct from user's balance."""
-        self.data["users"][str(user_id)]["balance"] -= amount
-        self._save_data()
     
     def get_last_daily(self, user_id: int) -> Optional[datetime.datetime]:
         """Safely get last daily claim time."""
