@@ -18,12 +18,14 @@ class MinesGame:
 
     def _generate_board(self) -> List[List[Tile]]:
         """Create board with gems and mines"""
+        # Create all gems first
         board = [[Tile("💎") for _ in range(5)] for _ in range(5)]
-        positions = random.sample(range(25), self.mines_count)
         
-        for pos in positions:
-            row = pos // 5
-            col = pos % 5
+        # Place mines randomly
+        positions = [(i, j) for i in range(5) for j in range(5)]
+        mine_positions = random.sample(positions, self.mines_count)
+        
+        for row, col in mine_positions:
             board[row][col].value = "💣"
         return board
 
@@ -36,18 +38,18 @@ class MinesGame:
             self._reveal_all()
             return False
             
-        self.gems_revealed += 1
-        self._update_multiplier()
+        if tile.value == "💎":
+            self.gems_revealed += 1
+            self._update_multiplier()
         return True
 
     def _update_multiplier(self):
-        """Calculate current multiplier"""
-        base = 0.25 + (self.mines_count / 24) * 0.5
-        self.current_multiplier = 1.0 + (self.gems_revealed * base)
+        """Calculate current multiplier with better progression"""
+        base_multiplier = 0.5 + (self.mines_count / 24) * 1.5
+        self.current_multiplier = round(1.0 + (self.gems_revealed * base_multiplier), 2)
 
     def _reveal_all(self):
         """Show all bombs/gems when game ends"""
         for row in self.board:
             for tile in row:
-                if tile.value in ("💣", "💎"):
-                    tile.revealed = True
+                tile.revealed = True
