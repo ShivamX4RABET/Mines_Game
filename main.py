@@ -229,6 +229,8 @@ async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: b
     
     if query.data == "cashout":
         if game.gems_revealed >= 2:
+            win_amount = int(game.bet_amount * game.current_multiplier)
+            db.add_balance(user_id, win_amount)
             await handle_game_over(update, user_id, game, won=True, context=context)
         else:
             await query.answer("❌ You need at least 2 gems to cash out!", show_alert=True)
