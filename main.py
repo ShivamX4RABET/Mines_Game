@@ -12,7 +12,7 @@ from game_logic import MinesGame
 from database import UserDatabase
 import config
 import datetime
-from typing import Optional
+from typing import Dict
 
 # Set up logging
 logging.basicConfig(
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 db = UserDatabase('users.json')
 
 # Game states
-user_games: dict[int, MinesGame] = {}
+user_games: Dict[int, MinesGame] = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
@@ -80,49 +80,6 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     balance = db.get_balance(user_id)
     await update.message.reply_text(f"Your current balance: {balance} Hiwa")
 
-async def send_game_board(update: Update, user_id: int, game: MinesGame, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show the interactive game board."""
-    keyboard = []
-    for i in range(5):
-        row = []
-        for j in range(5):
-            tile = game.board[i][j]
-            if tile.revealed:
-                row.append(InlineKeyboardButton(tile.value, callback_data=f"ignore_{i}_{j}"))
-            else:
-                row.append(InlineKeyboardButton("🟦", callback_data=f"reveal_{i}_{j}"))
-        keyboard.append(row)
-    
-    if game.gems_revealed >= 2:
-        keyboard.append([
-            InlineKeyboardButton(
-                f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
-                callback_data="cashout"
-            )
-        ])
-    
-    text = (
-        f"💎 Mines Game 💣\n\n"
-        f"Bet: {game.bet_amount} Hiwa\n"
-        f"Mines: {game.mines_count}\n"
-        f"Gems Found: {game.gems_revealed}/3\n"
-        f"Multiplier: {game.current_multiplier:.2f}x\n"
-        f"Potential Win: {int(game.bet_amount * game.current_multiplier)} Hiwa"
-    )
-    
-    try:
-        if hasattr(update, 'callback_query'):
-            await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            msg = await context.bot.send_message(
-                chat_id=user_id,
-                text=text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
-            game.message_id = msg.message_id
-    except Exception as e:
-        logger.error(f"Error sending game board: {e}")
-
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start a new Mines game."""
     user = update.effective_user
@@ -151,7 +108,7 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         return
     
     if mines < 3 or mines > 24:
-        await update_message.reply_text("Number of mines must be between 3 and 24.")
+        await update.message.reply_text("Number of mines must be between 3 and 24.")
         return
     
     # Check balance
@@ -164,231 +121,180 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     game = MinesGame(amount, mines)
     user_games[user_id] = game
     
-    # Send initial game board - THIS IS THE CRUCIAL FIX
-    await send_game_board(update, user_id, game, context)
+    # Show initial game board
+    await send_game_board(update, user_id, game)
 
-async def update_game_board(update: Update, game: MinesGame, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Refresh the game board display"""
-    query = update.callback_query
+async def send_game_board(update: Update, user_id: int, game: MinesGame) -> None:
+    """Send or update the game board."""
     keyboard = []
     for i in range(5):
         row = []
         for j in range(5):
             tile = game.board[i][j]
-            text = tile.value if tile.revealed else "🟦"
-            row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
+            if tile.revealed:
+                row.append(InlineKeyboardButton(tile.value, callback_data=f"ignore_{i}_{j}"))
+            else:
+                row.append(InlineKeyboardButton("🟦", callback_data=f"reveal_{i}_{j}"))
         keyboard.append(row)
     
+    # Add cashout button if eligible
     if game.gems_revealed >= 2:
-        keyboard.append([InlineKeyboardButton(
-            f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
-            callback_data="cashout"
-        )])
+        keyboard.append([InlineKeyboardButton(f"💰 Cash Out ({game.current_multiplier:.2f}x)", callback_data="cashout")])
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    # Calculate potential win
+    potential_win = game.bet_amount * game.current_multiplier
     
     text = (
-        f"💎 Mines Game 💣\n"
+        f"💎 Mines Game 💣\n\n"
         f"Bet: {game.bet_amount} Hiwa\n"
         f"Mines: {game.mines_count}\n"
         f"Gems Found: {game.gems_revealed}/3\n"
-        f"Multiplier: {game.current_multiplier:.2f}x\n"
-        f"Potential Win: {int(game.bet_amount * game.current_multiplier)} Hiwa"
+        f"Current Multiplier: {game.current_multiplier:.2f}x\n"
+        f"Potential Win: {potential_win:.2f} Hiwa\n\n"
+        "Click tiles to reveal them!"
     )
     
-    try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-    except Exception as e:
-        logger.error(f"Error updating game board: {e}")
-
-async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, context: ContextTypes.DEFAULT_TYPE):
-    """Handle game conclusion"""
-    # Remove game from active sessions
-    if user_id in user_games:
-        del user_games[user_id]
-    
-    # Show final board
-    keyboard = []
-    for row in game.board:
-        keyboard_row = []
-        for tile in row:
-            keyboard_row.append(InlineKeyboardButton(tile.value, callback_data="ignore"))
-        keyboard.append(keyboard_row)
-    
-    if won:
-        msg = f"🎉 Cashout Successful!\nWon: {int(game.bet_amount * game.current_multiplier)} Hiwa"
+    if game.message_id:
+        await update.callback_query.edit_message_text(text, reply_markup=reply_markup)
     else:
-        msg = f"💥 Game Over!\nLost: {game.bet_amount} Hiwa"
-    
-    keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
-    
-    try:
-        await update.callback_query.edit_message_text(
-            f"{msg}\nNew Balance: {db.get_balance(user_id)} Hiwa",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+        message = await context.bot.send_message(
+            chat_id=user_id,
+            text=text,
+            reply_markup=reply_markup
         )
-    except Exception as e:
-        logger.error(f"Error handling game over: {e}")
+        game.message_id = message.message_id
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle all button interactions"""
+    """Handle button clicks (tile reveals and cashout)."""
     query = update.callback_query
     await query.answer()
     
     user_id = query.from_user.id
-    
-    # Check if user has an active game
     if user_id not in user_games:
-        await query.edit_message_text("🚫 No active game! Use /mine to start")
+        await query.edit_message_text("Your game session has expired. Start a new game with /mine")
         return
     
     game = user_games[user_id]
     
-    # Handle cashout button
-    if query.data == "cashout":
-        if game.gems_revealed >= 2:
-            win_amount = int(game.bet_amount * game.current_multiplier)
-            db.add_balance(user_id, win_amount)
-            await handle_game_over(update, user_id, game, won=True, context=context)
-        else:
-            await query.answer("❌ You need at least 2 gems to cash out!", show_alert=True)
-    
-    # Handle tile reveals
-    elif query.data.startswith("reveal_"):
-        _, row, col = query.data.split("_")
-        row = int(row)
-        col = int(col)
+    if query.data.startswith("reveal_"):
+        # Tile reveal logic
+        _, i, j = query.data.split("_")
+        i, j = int(i), int(j)
         
-        if game.reveal_tile(row, col):
-            await update_game_board(update, game, context)
+        if game.reveal_tile(i, j):
+            # Tile was a gem
+            await send_game_board(update, user_id, game)
         else:
-            await handle_game_over(update, user_id, game, won=False, context=context)
+            # Tile was a bomb - game over
+            await handle_game_over(update, user_id, game, won=False)
+    elif query.data == "cashout":
+        # Cashout logic
+        if game.gems_revealed >= 2:
+            await handle_game_over(update, user_id, game, won=True)
+        else:
+            await query.answer("You need at least 2 gems to cash out!", show_alert=True)
+
+async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool) -> None:
+    """Handle game over (win or loss)."""
+    if won:
+        win_amount = game.bet_amount * game.current_multiplier
+        db.add_balance(user_id, win_amount)
+        message = (
+            f"🎉 You cashed out and won {win_amount:.2f} Hiwa!\n\n"
+            f"Final Multiplier: {game.current_multiplier:.2f}x\n"
+            f"New Balance: {db.get_balance(user_id)} Hiwa\n\n"
+            "Play again with /mine"
+        )
+    else:
+        message = (
+            f"💥 Boom! You hit a bomb and lost {game.bet_amount} Hiwa.\n\n"
+            f"Gems Found: {game.gems_revealed}\n"
+            f"New Balance: {db.get_balance(user_id)} Hiwa\n\n"
+            "Try again with /mine"
+        )
     
-    # Handle new game button
-    elif query.data == "new_game":
-        await query.edit_message_text("Use /mine <amount> <mines> to start a new game!")
+    # Show final board
+    keyboard = []
+    for i in range(5):
+        row = []
+        for j in range(5):
+            tile = game.board[i][j]
+            row.append(InlineKeyboardButton(tile.value, callback_data=f"ignore_{i}_{j}"))
+        keyboard.append(row)
+    
+    keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
+    del user_games[user_id]
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /cashout command"""
+    """Handle /cashout command."""
     user_id = update.effective_user.id
     if user_id not in user_games:
-        await update.message.reply_text("No active game! Start with /mine")
+        await update.message.reply_text("You don't have an active game to cash out.")
         return
     
     game = user_games[user_id]
-    if game.gems_revealed >= 2:
-        winnings = int(game.bet_amount * game.current_multiplier)
-        db.add_balance(user_id, winnings)
-        await handle_game_over(update, user_id, game, won=True, context=context)
-    else:
-        await update.message.reply_text("You need at least 2 gems to cash out!")
+    if game.gems_revealed < 2:
+        await update.message.reply_text("You need at least 2 gems revealed to cash out!")
+        return
+    
+    await handle_game_over(update, user_id, game, won=True)
 
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle daily bonus with proper cooldown message"""
+    """Handle /daily command."""
     user_id = update.effective_user.id
+    last_daily = db.get_last_daily(user_id)
     
-    try:
-        last_claim = db.get_last_daily(user_id)
-        now = datetime.datetime.now()
-        
-        if last_claim:
-            next_available = last_claim + datetime.timedelta(hours=24)
-            if now < next_available:
-                remaining = next_available - now
-                hours, remainder = divmod(remaining.seconds, 3600)
-                minutes, _ = divmod(remainder, 60)
-                
-                await update.message.reply_text(
-                    f"⏳ *Daily Bonus Already Claimed!*\n\n"
-                    f"You've already collected your daily bonus.\n"
-                    f"Next available in: *{hours}h {minutes}m*\n"
-                    f"Reset time: {next_available.strftime('%Y-%m-%d %H:%M:%S')}",
-                    parse_mode='Markdown'
-                )
-                return
-        
-        # Grant bonus if not claimed or cooldown passed
-        amount = 50
-        db.add_balance(user_id, amount)
-        db.set_last_daily(user_id, now)
-        
+    if last_daily and (datetime.datetime.now() - last_daily).total_seconds() < 24 * 3600:
+        next_claim = last_daily + datetime.timedelta(hours=24)
         await update.message.reply_text(
-            f"🎁 *Daily Bonus Collected!*\n\n"
-            f"+{amount} Hiwa added to your balance\n"
-            f"New balance: *{db.get_balance(user_id)} Hiwa*\n\n"
-            f"Next bonus available in 24 hours",
-            parse_mode='Markdown'
+            f"You've already claimed your daily bonus today.\n"
+            f"Next claim available at {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
         )
-        
-    except Exception as e:
-        logger.error(f"Daily bonus error: {e}")
-        await update.message.reply_text("❌ Error processing daily bonus. Please try again.")
+        return
+    
+    amount = 50  # Daily bonus amount
+    db.add_balance(user_id, amount)
+    db.set_last_daily(user_id, datetime.datetime.now())
+    await update.message.reply_text(
+        f"🎁 You claimed your daily bonus of {amount} Hiwa!\n"
+        f"New balance: {db.get_balance(user_id)} Hiwa"
+    )
 
 async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle weekly bonus with proper cooldown message"""
+    """Handle /weekly command."""
     user_id = update.effective_user.id
+    last_weekly = db.get_last_weekly(user_id)
     
-    try:
-        last_claim = db.get_last_weekly(user_id)
-        now = datetime.datetime.now()
-        
-        if last_claim:
-            next_available = last_claim + datetime.timedelta(days=7)
-            if now < next_available:
-                remaining = next_available - now
-                days = remaining.days
-                hours, remainder = divmod(remaining.seconds, 3600)
-                minutes, _ = divmod(remainder, 60)
-                
-                await update.message.reply_text(
-                    f"⏳ *Weekly Bonus Already Claimed!*\n\n"
-                    f"You've already collected your weekly bonus.\n"
-                    f"Next available in: *{days}d {hours}h {minutes}m*\n"
-                    f"Reset time: {next_available.strftime('%Y-%m-%d %H:%M:%S')}",
-                    parse_mode='Markdown'
-                )
-                return
-        
-        # Grant bonus if not claimed or cooldown passed
-        amount = 200
-        db.add_balance(user_id, amount)
-        db.set_last_weekly(user_id, now)
-        
+    if last_weekly and (datetime.datetime.now() - last_weekly).total_seconds() < 7 * 24 * 3600:
+        next_claim = last_weekly + datetime.timedelta(days=7)
         await update.message.reply_text(
-            f"🎁 *Weekly Bonus Collected!*\n\n"
-            f"+{amount} Hiwa added to your balance\n"
-            f"New balance: *{db.get_balance(user_id)} Hiwa*\n\n"
-            f"Next bonus available in 7 days",
-            parse_mode='Markdown'
+            f"You've already claimed your weekly bonus this week.\n"
+            f"Next claim available at {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
         )
-        
-    except Exception as e:
-        logger.error(f"Weekly bonus error: {e}")
-        await update.message.reply_text("❌ Error processing weekly bonus. Please try again.")
+        return
+    
+    amount = 200  # Weekly bonus amount
+    db.add_balance(user_id, amount)
+    db.set_last_weekly(user_id, datetime.datetime.now())
+    await update.message.reply_text(
+        f"🎁 You claimed your weekly bonus of {amount} Hiwa!\n"
+        f"New balance: {db.get_balance(user_id)} Hiwa"
+    )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Debugged leaderboard command"""
-    try:
-        top_users = db.get_top_users(10)
-        logger.info(f"Leaderboard data fetched: {top_users}")
-        
-        if not top_users:
-            await update.message.reply_text("🏆 Leaderboard is empty! Be the first to play!")
-            return
-
-        message = ["🏆 <b>TOP PLAYERS</b> 🏆", "", "<pre>"]
-        headers = ["Rank", "Player", "Balance"]
-        message.append(f"{headers[0]:<5} {headers[1]:<15} {headers[2]:>10}")
-        message.append("-"*35)
-        
-        for rank, (user_id, username, balance) in enumerate(top_users, 1):
-            display_name = username if username else f"User{str(user_id)[:4]}"
-            message.append(f"{rank:<5} {display_name[:15]:<15} {balance:>10} Hiwa")
-        
-        message.extend(["</pre>", "", "Play /mine to climb ranks!"])
-        await update.message.reply_text("\n".join(message), parse_mode='HTML')
-        
-    except Exception as e:
-        logger.error(f"Leaderboard error: {e}")
-        await update.message.reply_text("⚠️ Couldn't fetch leaderboard. Please try later.")
+    """Show the leaderboard."""
+    top_users = db.get_top_users(10)
+    message = "🏆 *Top Players Leaderboard* 🏆\n\n"
+    
+    for i, (user_id, username, balance) in enumerate(top_users, 1):
+        message += f"{i}. {username}: {balance} Hiwa\n"
+    
+    await update.message.reply_text(message, parse_mode='Markdown')
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
@@ -434,14 +340,11 @@ async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     
     # Notify recipient
-    try:
-        await context.bot.send_message(
-            chat_id=recipient_id,
-            text=f"🎁 You received {amount} Hiwa from @{update.effective_user.username}!\n"
-                 f"New balance: {recipient_balance} Hiwa"
-        )
-    except Exception as e:
-        logger.error(f"Failed to notify recipient: {e}")
+    await context.bot.send_message(
+        chat_id=recipient_id,
+        text=f"🎁 You received {amount} Hiwa from @{update.effective_user.username}!\n"
+             f"New balance: {recipient_balance} Hiwa"
+    )
 
 async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to broadcast a message to all users."""
@@ -456,16 +359,14 @@ async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     message = " ".join(context.args)
     users = db.get_all_users()
-    success = 0
     
     for user_id in users:
         try:
             await context.bot.send_message(chat_id=user_id, text=f"📢 Admin Broadcast:\n\n{message}")
-            success += 1
         except Exception as e:
             logger.error(f"Failed to send broadcast to {user_id}: {e}")
     
-    await update.message.reply_text(f"Broadcast sent to {success}/{len(users)} users.")
+    await update.message.reply_text(f"Broadcast sent to {len(users)} users.")
 
 async def admin_reset_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to reset all user data."""
@@ -475,7 +376,6 @@ async def admin_reset_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
     
     db.reset_all_data()
-    user_games.clear()
     await update.message.reply_text("All user data has been reset.")
 
 async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -499,10 +399,6 @@ async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     target_id = db.get_user_id_by_username(username)
     if not target_id:
         await update.message.reply_text(f"User @{username} not found.")
-        return
-    
-    if amount < 0:
-        await update.message.reply_text("Balance cannot be negative.")
         return
     
     db.set_balance(target_id, amount)
