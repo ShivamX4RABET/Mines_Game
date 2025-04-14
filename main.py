@@ -256,22 +256,25 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await query.answer()
     
     user_id = query.from_user.id
+    
+    # Check if user has an active game
     if user_id not in user_games:
-        await query.edit_message_text("Session expired. Start new game with /mine")
+        await query.edit_message_text("🚫 No active game! Use /mine to start")
         return
     
     game = user_games[user_id]
     
+    # Handle cashout button
     if query.data == "cashout":
         if game.gems_revealed >= 2:
-            # Calculate integer winnings
-            winnings = int(game.bet_amount * game.current_multiplier)
-            db.add_balance(user_id, winnings)
+            win_amount = int(game.bet_amount * game.current_multiplier)
+            db.add_balance(user_id, win_amount)
             await handle_game_over(update, user_id, game, won=True, context=context)
         else:
-            await query.answer("Minimum 2 gems required to cash out!", show_alert=True)
+            await query.answer("❌ You need at least 2 gems to cash out!", show_alert=True)
     
-    elif query.data.startswith("reveal_"):
+    # Handle tile reveals (THIS MUST BE AT SAME LEVEL AS CASHOUT IF)
+    elif query.data.startswith("reveal_"):  # Properly aligned with parent 'if'
         _, row, col = query.data.split("_")
         row = int(row)
         col = int(col)
