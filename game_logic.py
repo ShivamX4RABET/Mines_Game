@@ -50,6 +50,7 @@ class MinesGame:
                     tile.revealed = True
 
     def _update_multiplier(self):
-        """Update multiplier based on gems found"""
-        base_increase = 0.25 + (self.mines_count / 24) * 0.5
-        self.current_multiplier = 1.0 + (self.gems_revealed * base_increase)
+    """Calculate multiplier and return integer Hiwa amounts"""
+    base_increase = 0.25 + (self.mines_count / 24) * 0.5
+    self.current_multiplier = 1.0 + (self.gems_revealed * base_increase)
+    return self.current_multiplier
