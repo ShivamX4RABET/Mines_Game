@@ -297,14 +297,15 @@ async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("You need at least 2 gems to cash out!")
         
         # Tile reveal handling
-        elif query.data.startswith("reveal_"):
-            _, i, j = query.data.split("_")
-            i, j = int(i), int(j)
-            
-            if game.reveal_tile(i, j):
-                await send_game_board(update, user_id, game, context)
-            else:
-                await handle_game_over(update, user_id, game, won=False, context=context)
+    elif query.data.startswith("reveal_"):  # Now properly connected to parent 'if'
+        _, row, col = query.data.split("_")
+        row = int(row)
+        col = int(col)
+        
+        if game.reveal_tile(row, col):
+            await update_game_board(update, game, context)
+        else:
+            await handle_game_over(update, user_id, game, won=False, context=context)
                 
     except Exception as e:
         logger.error(f"Button click error: {e}")
