@@ -118,38 +118,6 @@ async def send_game_board(update: Update, user_id: int, game: MinesGame, context
             game.message_id = msg.message_id
     except Exception as e:
         logger.error(f"Error updating board: {e}")
-    
-    # Add cashout button if eligible
-    if game.gems_revealed >= 2:
-        keyboard.append([InlineKeyboardButton(
-            f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
-            callback_data="cashout"
-        )])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    text = (
-        f"💎 Mines Game 💣\n\n"
-        f"Bet: {game.bet_amount} Hiwa\n"
-        f"Mines: {game.mines_count}\n"
-        f"Gems Found: {game.gems_revealed}/3\n"
-        f"Current Multiplier: {game.current_multiplier:.2f}x\n"
-        f"Potential Win: {game.bet_amount * game.current_multiplier:.2f} Hiwa\n\n"
-        "Click tiles to reveal them!"
-    )
-    
-    try:
-        if hasattr(update, 'callback_query') and update.callback_query:
-            await update.callback_query.edit_message_text(text, reply_markup=reply_markup)
-        else:
-            message = await context.bot.send_message(
-                chat_id=user_id,
-                text=text,
-                reply_markup=reply_markup
-            )
-            game.message_id = message.message_id
-    except Exception as e:
-        logger.error(f"Error sending game board: {e}")
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start a new Mines game."""
@@ -197,6 +165,7 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 async def update_game_board(update: Update, game: MinesGame, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Refresh the game board display"""
+    query = update.callback_query
     keyboard = []
     for i in range(5):
         row = []
@@ -216,15 +185,15 @@ async def update_game_board(update: Update, game: MinesGame, context: ContextTyp
         f"💎 Mines Game 💣\n"
         f"Bet: {game.bet_amount} Hiwa\n"
         f"Mines: {game.mines_count}\n"
-        f"Gems Found: {game.gems_revealed}/25\n"
+        f"Gems Found: {game.gems_revealed}/3\n"
         f"Multiplier: {game.current_multiplier:.2f}x\n"
         f"Potential Win: {int(game.bet_amount * game.current_multiplier)} Hiwa"
     )
     
     try:
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-    except:
-        await context.bot.edit_message_text(text, user_id, game.message_id, reply_markup=InlineKeyboardMarkup(keyboard))
+    except Exception as e:
+        logger.error(f"Error updating game board: {e}")
 
 async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, context: ContextTypes.DEFAULT_TYPE):
     """Handle game conclusion"""
@@ -245,10 +214,15 @@ async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: b
     else:
         msg = f"💥 Game Over!\nLost: {game.bet_amount} Hiwa"
     
-    await update.callback_query.edit_message_text(
-        f"{msg}\nNew Balance: {db.get_balance(user_id)} Hiwa",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
+    keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
+    
+    try:
+        await update.callback_query.edit_message_text(
+            f"{msg}\nNew Balance: {db.get_balance(user_id)} Hiwa",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    except Exception as e:
+        logger.error(f"Error handling game over: {e}")
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle all button interactions"""
@@ -273,8 +247,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         else:
             await query.answer("❌ You need at least 2 gems to cash out!", show_alert=True)
     
-    # Handle tile reveals (THIS MUST BE AT SAME LEVEL AS CASHOUT IF)
-    elif query.data.startswith("reveal_"):  # Properly aligned with parent 'if'
+    # Handle tile reveals
+    elif query.data.startswith("reveal_"):
         _, row, col = query.data.split("_")
         row = int(row)
         col = int(col)
@@ -283,6 +257,10 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await update_game_board(update, game, context)
         else:
             await handle_game_over(update, user_id, game, won=False, context=context)
+    
+    # Handle new game button
+    elif query.data == "new_game":
+        await query.edit_message_text("Use /mine <amount> <mines> to start a new game!")
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /cashout command"""
@@ -298,36 +276,6 @@ async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await handle_game_over(update, user_id, game, won=True, context=context)
     else:
         await update.message.reply_text("You need at least 2 gems to cash out!")
-        
-        # Tile reveal handling
-    elif query.data.startswith("reveal_"):  # Now properly connected to parent 'if'
-        _, row, col = query.data.split("_")
-        row = int(row)
-        col = int(col)
-        
-        if game.reveal_tile(row, col):
-            await update_game_board(update, game, context)
-        else:
-            await handle_game_over(update, user_id, game, won=False, context=context)
-                
-    except Exception as e:
-        logger.error(f"Button click error: {e}")
-        await query.edit_message_text("❌ Error processing action. Try again.")
-    
-    # Show final board
-    keyboard = []
-    for i in range(5):
-        row = []
-        for j in range(5):
-            tile = game.board[i][j]
-            row.append(InlineKeyboardButton(tile.value, callback_data=f"ignore_{i}_{j}"))
-        keyboard.append(row)
-    
-    keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await update.callback_query.edit_message_text(message, reply_markup=reply_markup)
-    del user_games[user_id]
 
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle daily bonus with proper cooldown message"""
@@ -416,7 +364,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """Debugged leaderboard command"""
     try:
         top_users = db.get_top_users(10)
-        logger.info(f"Leaderboard data fetched: {top_users}")  # Debug logging
+        logger.info(f"Leaderboard data fetched: {top_users}")
         
         if not top_users:
             await update.message.reply_text("🏆 Leaderboard is empty! Be the first to play!")
@@ -482,11 +430,14 @@ async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
     
     # Notify recipient
-    await context.bot.send_message(
-        chat_id=recipient_id,
-        text=f"🎁 You received {amount} Hiwa from @{update.effective_user.username}!\n"
-             f"New balance: {recipient_balance} Hiwa"
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=recipient_id,
+            text=f"🎁 You received {amount} Hiwa from @{update.effective_user.username}!\n"
+                 f"New balance: {recipient_balance} Hiwa"
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify recipient: {e}")
 
 async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to broadcast a message to all users."""
@@ -501,14 +452,16 @@ async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     message = " ".join(context.args)
     users = db.get_all_users()
+    success = 0
     
     for user_id in users:
         try:
             await context.bot.send_message(chat_id=user_id, text=f"📢 Admin Broadcast:\n\n{message}")
+            success += 1
         except Exception as e:
             logger.error(f"Failed to send broadcast to {user_id}: {e}")
     
-    await update.message.reply_text(f"Broadcast sent to {len(users)} users.")
+    await update.message.reply_text(f"Broadcast sent to {success}/{len(users)} users.")
 
 async def admin_reset_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to reset all user data."""
@@ -518,6 +471,7 @@ async def admin_reset_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
     
     db.reset_all_data()
+    user_games.clear()
     await update.message.reply_text("All user data has been reset.")
 
 async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -541,6 +495,10 @@ async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     target_id = db.get_user_id_by_username(username)
     if not target_id:
         await update.message.reply_text(f"User @{username} not found.")
+        return
+    
+    if amount < 0:
+        await update.message.reply_text("Balance cannot be negative.")
         return
     
     db.set_balance(target_id, amount)
