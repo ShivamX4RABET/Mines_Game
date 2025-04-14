@@ -114,10 +114,14 @@ async def send_game_board(update: Update, user_id: int, game: MinesGame, context
         if hasattr(update, 'callback_query'):
             await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            msg = await context.bot.send_message(user_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+            msg = await context.bot.send_message(
+                chat_id=user_id,
+                text=text,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
             game.message_id = msg.message_id
     except Exception as e:
-        logger.error(f"Error updating board: {e}")
+        logger.error(f"Error sending game board: {e}")
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Start a new Mines game."""
