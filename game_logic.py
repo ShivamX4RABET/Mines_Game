@@ -4,7 +4,7 @@ import random
 
 @dataclass
 class Tile:
-    value: str
+    value: str  # "💣" or "💎"
     revealed: bool = False
 
 class MinesGame:
@@ -17,37 +17,36 @@ class MinesGame:
         self.board = self._generate_board()
 
     def _generate_board(self) -> List[List[Tile]]:
-        """Generate a 5x5 board where all non-mine tiles are gems"""
+        """Create board with gems and mines"""
         board = [[Tile("💎") for _ in range(5)] for _ in range(5)]
+        positions = random.sample(range(25), self.mines_count)
         
-        bomb_positions = random.sample(range(25), self.mines_count)
-        for pos in bomb_positions:
-            i, j = divmod(pos, 5)
-            board[i][j].value = "💣"
+        for pos in positions:
+            row = pos // 5
+            col = pos % 5
+            board[row][col].value = "💣"
         return board
 
-    def reveal_tile(self, i: int, j: int) -> bool:
-        """Reveal tile and return True if gem/safe, False if bomb"""
-        tile = self.board[i][j]
+    def reveal_tile(self, row: int, col: int) -> bool:
+        """Return True if safe/gem, False if bomb"""
+        tile = self.board[row][col]
         tile.revealed = True
         
         if tile.value == "💣":
-            self._reveal_all_mines_and_gems()
+            self._reveal_all()
             return False
-        elif tile.value == "💎":
-            self.gems_revealed += 1
-            self._update_multiplier()
-            return True
+            
+        self.gems_revealed += 1
+        self._update_multiplier()
         return True
 
-    def _update_multiplier(self) -> float:
-        """Calculate multiplier and return integer Hiwa amounts"""
-        base_increase = 0.25 + (self.mines_count / 24) * 0.5
-        self.current_multiplier = 1.0 + (self.gems_revealed * base_increase)
-        return self.current_multiplier
+    def _update_multiplier(self):
+        """Calculate current multiplier"""
+        base = 0.25 + (self.mines_count / 24) * 0.5
+        self.current_multiplier = 1.0 + (self.gems_revealed * base)
 
-    def _reveal_all_mines_and_gems(self) -> None:
-        """Reveal all bombs and gems when game ends"""
+    def _reveal_all(self):
+        """Show all bombs/gems when game ends"""
         for row in self.board:
             for tile in row:
                 if tile.value in ("💣", "💎"):
