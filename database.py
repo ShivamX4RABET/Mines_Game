@@ -35,10 +35,13 @@ class UserDatabase:
         self.data["users"][str(user_id)]["balance"] -= amount
         self._save_data()
     
-    def set_balance(self, user_id: int, amount: int) -> None:
-        """Set balance to whole number Hiwa (no decimals)"""
-        self.data["users"][str(user_id)]["balance"] = int(amount)
-        self._save_data()
+    def set_balance(self, user_id: int, amount: int) -> bool:
+    """Set user balance"""
+    if not self.user_exists(user_id):
+        return False
+    self.data[str(user_id)]['balance'] = amount
+    self._save()
+    return True
 
     def user_exists(self, user_id: int) -> bool:
         """Check if a user exists in the database."""
