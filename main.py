@@ -128,48 +128,67 @@ async def send_game_board(update: Update, user_id: int, game: MinesGame, context
         logger.error(f"Error sending game board: {e}")
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Start a new Mines game."""
-    user = update.effective_user
-    user_id = user.id
-    
-    # Check if user is already in a game
-    if user_id in user_games:
-        await update.message.reply_text("You already have an active game! Finish it first.")
-        return
-    
-    # Validate arguments
-    if len(context.args) != 2:
-        await update.message.reply_text("Usage: /mine <amount> <mines>\nExample: /mine 10 5")
-        return
-    
+    """Handle /mine command and initialize game"""
     try:
+        user = update.effective_user
+        user_id = user.id
+        
+        # Validate command arguments
+        if len(context.args) != 2:
+            await update.message.reply_text("Usage: /mine <amount> <mines>\nExample: /mine 100 5")
+            return
+        
         amount = int(context.args[0])
         mines = int(context.args[1])
-    except ValueError:
-        await update.message.reply_text("Please enter valid numbers for amount and mines.")
-        return
+        
+        # Validate input
+        if amount < 1 or mines < 3 or mines > 24:
+            await update.message.reply_text("Invalid input!\nAmount ≥1 | Mines 3-24")
+            return
+            
+        # Check balance
+        if not db.has_sufficient_balance(user_id, amount):
+            await update.message.reply_text("Insufficient balance!")
+            return
+            
+        # Deduct balance and start game
+        db.deduct_balance(user_id, amount)
+        game = MinesGame(amount, mines)
+        user_games[user_id] = game
+        
+        # Send initial game board
+        await send_initial_board(update, context, user_id, game)
+        
+    except Exception as e:
+        logger.error(f"/mine error: {e}")
+        await update.message.reply_text("Error starting game. Try again.")
+
+async def send_initial_board(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, game: MinesGame) -> None:
+    """Send the first game board with tiles"""
+    keyboard = [
+        [InlineKeyboardButton("🟦", callback_data=f"reveal_{i}_{j}") 
+        for j in range(5)
+        ] 
+        for i in range(5)
+    ]
     
-    # Validate amount and mines
-    if amount < 1:
-        await update.message.reply_text("Amount must be at least 1 Hiwa.")
-        return
+    # Add cashout button row
+    keyboard.append([InlineKeyboardButton("💰 Initialize Cashout", callback_data="cashout")])
     
-    if mines < 3 or mines > 24:
-        await update.message.reply_text("Number of mines must be between 3 and 24.")
-        return
+    text = (
+        f"💎 Mines Game Started! 💣\n"
+        f"Bet: {game.bet_amount} Hiwa\n"
+        f"Mines: {game.mines_count}\n"
+        f"Tap tiles to begin!"
+    )
     
-    # Check balance
-    if not db.has_sufficient_balance(user_id, amount):
-        await update.message.reply_text("Insufficient balance for this bet.")
-        return
+    message = await context.bot.send_message(
+        chat_id=user_id,
+        text=text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
     
-    # Deduct balance and start game
-    db.deduct_balance(user_id, amount)
-    game = MinesGame(amount, mines)
-    user_games[user_id] = game
-    
-    # Show initial game board
-    await send_game_board(update, user_id, game, context)
+    # Store message ID for later edits
+    game.message_id = message.message_id
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle button clicks (tile reveals and cashout)."""
