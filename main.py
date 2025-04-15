@@ -147,7 +147,7 @@ async def send_game_board(update: Update, user_id: int, game: MinesGame, context
         f"💎 Mines Game 💣\n\n"
         f"Bet: {game.bet_amount} Hiwa\n"
         f"Mines: {game.mines_count}\n"
-        f"Gems Found: {game.gems_revealed}/3\n"
+        f"Gems Found: {game.gems_revealed}/{25 - game.mines_count}"
         f"Multiplier: {game.current_multiplier:.2f}x\n"
         f"Potential Win: {game.bet_amount * game.current_multiplier:.2f} Hiwa"
     )
