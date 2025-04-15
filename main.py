@@ -81,51 +81,43 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(f"Your current balance: {balance} Hiwa")
 
 async def send_game_board(update: Update, user_id: int, game: MinesGame, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Send or update the game board with interactive buttons."""
+    """Show updated game board"""
+    total_gems = 25 - game.mines_count  # Calculate actual gem count
+    
     keyboard = []
     for i in range(5):
         row = []
         for j in range(5):
             tile = game.board[i][j]
-            if tile.revealed:
-                # Show revealed tile
-                row.append(InlineKeyboardButton(tile.value, callback_data=f"ignore_{i}_{j}"))
-            else:
-                # Show hidden tile (clickable)
-                row.append(InlineKeyboardButton("🟦", callback_data=f"reveal_{i}_{j}"))
+            text = tile.value if tile.revealed else "🟦"
+            row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
         keyboard.append(row)
     
-    # Add cashout button if eligible
     if game.gems_revealed >= 2:
-        keyboard.append([InlineKeyboardButton(
-            f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
-            callback_data="cashout"
-        )])
-    
-    reply_markup = InlineKeyboardMarkup(keyboard)
+        keyboard.append([
+            InlineKeyboardButton(
+                f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
+                callback_data="cashout"
+            )
+        ])
     
     text = (
         f"💎 Mines Game 💣\n\n"
         f"Bet: {game.bet_amount} Hiwa\n"
         f"Mines: {game.mines_count}\n"
-        f"Gems Found: {game.gems_revealed}/3\n"
-        f"Current Multiplier: {game.current_multiplier:.2f}x\n"
-        f"Potential Win: {game.bet_amount * game.current_multiplier:.2f} Hiwa\n\n"
-        "Click tiles to reveal them!"
+        f"Gems Found: {game.gems_revealed}/{total_gems}\n"  # Updated here
+        f"Multiplier: {game.current_multiplier:.2f}x\n"
+        f"Potential Win: {int(game.bet_amount * game.current_multiplier)} Hiwa"
     )
     
     try:
-        if hasattr(update, 'callback_query') and update.callback_query:
-            await update.callback_query.edit_message_text(text, reply_markup=reply_markup)
+        if hasattr(update, 'callback_query'):
+            await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
         else:
-            message = await context.bot.send_message(
-                chat_id=user_id,
-                text=text,
-                reply_markup=reply_markup
-            )
-            game.message_id = message.message_id
+            msg = await context.bot.send_message(user_id, text, reply_markup=InlineKeyboardMarkup(keyboard))
+            game.message_id = msg.message_id
     except Exception as e:
-        logger.error(f"Error sending game board: {e}")
+        logger.error(f"Board update error: {e}")
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /mine command and initialize game"""
