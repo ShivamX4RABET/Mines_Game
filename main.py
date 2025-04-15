@@ -167,7 +167,7 @@ async def send_initial_board(update: Update, context: ContextTypes.DEFAULT_TYPE,
     """Send the first game board with tiles"""
     keyboard = [
         [InlineKeyboardButton("🟦", callback_data=f"reveal_{i}_{j}") 
-        for j in range(5)
+         for j in range(5)
         ] 
         for i in range(5)
     ]
@@ -182,10 +182,12 @@ async def send_initial_board(update: Update, context: ContextTypes.DEFAULT_TYPE,
         f"Tap tiles to begin!"
     )
     
+    # Fixed send_message call with proper parenthesis
     message = await context.bot.send_message(
         chat_id=user_id,
         text=text,
         reply_markup=InlineKeyboardMarkup(keyboard)
+    )  # Closing parenthesis added here
     
     # Store message ID for later edits
     game.message_id = message.message_id
