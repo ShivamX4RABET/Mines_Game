@@ -1,6 +1,7 @@
 import json
 import os
 from typing import List, Tuple, Optional, Dict, Any
+import datetime  # Added import for time handling
 
 class UserDatabase:
     def __init__(self, filename: str):
@@ -19,6 +20,9 @@ class UserDatabase:
         """Save user data to JSON file."""
         with open(self.filename, 'w') as f:
             json.dump(self.data, f, indent=2)
+    
+    # ... (keep all other methods exactly the same as before)
+    # Only ensure all datetime handling is present
     
     def user_exists(self, user_id: int) -> bool:
         """Check if a user exists in the database."""
