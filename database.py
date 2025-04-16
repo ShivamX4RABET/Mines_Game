@@ -46,23 +46,25 @@ class UserDatabase:
         """Get a user's balance."""
         return self.data["users"][str(user_id)]["balance"]
     
-    def set_balance(self, user_id: int, amount: int) -> None:
-        """Set a user's balance."""
-        self.data["users"][str(user_id)]["balance"] = amount
+    def set_balance(self, user_id: int, amount: float) -> None:
+        """Set balance to whole numbers only"""
+        self.data["users"][str(user_id)]["balance"] = int(round(amount))
         self._save_data()
     
     def has_sufficient_balance(self, user_id: int, amount: int) -> bool:
         """Check if user has sufficient balance."""
         return self.get_balance(user_id) >= amount
     
-    def deduct_balance(self, user_id: int, amount: int) -> None:
-        """Deduct from user's balance."""
-        self.data["users"][str(user_id)]["balance"] -= amount
-        self._save_data()
-    
-    def add_balance(self, user_id: int, amount: int) -> None:
-        """Add to user's balance."""
+    def add_balance(self, user_id: int, amount: float) -> None:
+        """Add whole number Hiwa only"""
+        amount = int(round(amount))  # Convert to nearest integer
         self.data["users"][str(user_id)]["balance"] += amount
+        self._save_data()
+
+    def deduct_balance(self, user_id: int, amount: float) -> None:
+        """Deduct whole number Hiwa only"""
+        amount = int(round(amount))  # Convert to nearest integer
+        self.data["users"][str(user_id)]["balance"] -= amount
         self._save_data()
     
     def get_last_daily(self, user_id: int):
