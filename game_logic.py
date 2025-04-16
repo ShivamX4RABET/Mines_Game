@@ -54,3 +54,7 @@ class MinesGame:
         """Update multiplier based on gems found"""
         base = 0.25 + (self.mines_count / 24) * 0.5
         self.current_multiplier = 1.0 + (self.gems_revealed * base)
+
+    def calculate_winnings(self) -> int:
+        """Return integer winnings"""
+        return int(self.bet_amount * self.current_multiplier)
