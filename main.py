@@ -10,6 +10,7 @@ from telegram.ext import (
 )
 from game_logic import MinesGame
 from database import UserDatabase
+db = UserDatabase("users.json")
 import config
 import datetime
 from typing import Dict
