@@ -2,11 +2,15 @@ import json
 import os
 from typing import List, Tuple, Optional, Dict, Any
 import datetime  # Added import for time handling
+from pathlib import Path
+
+DATA_DIR = Path(os.getenv("PERSISTENT_STORAGE_PATH", "persistent_data"))
+DATA_DIR.mkdir(exist_ok=True)
 
 class UserDatabase:
     def __init__(self, filename: str):
-        self.filename = filename
-        self.data = self._load_data()
+        self.filename = str(DATA_DIR / filename)  # <-- This line changed
+        self.data = self._load_data() 
     
     def _load_data(self) -> Dict[str, Any]:
         """Load user data from JSON file."""
