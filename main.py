@@ -221,7 +221,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle game over (win or loss)."""
     if won:
-        win_amount = game.bet_amount * game.current_multiplier
+        win_amount = game.calculate_winnings()
         db.add_balance(user_id, win_amount)
         message = (
             f"🎉 You cashed out and won {win_amount:.2f} Hiwa!\n\n"
