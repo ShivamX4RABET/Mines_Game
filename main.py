@@ -81,16 +81,20 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     balance = db.get_balance(user_id)
     await update.message.reply_text(f"Your current balance: {balance} Hiwa")
 
-async def send_game_board(update: Update, user_id: int, game: MinesGame, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show updated game board"""
-    total_gems = 25 - game.mines_count  # Calculate actual gem count
-    
+async def send_game_board(update: Update, game: MinesGame, exploded_row: int = -1, exploded_col: int = -1):
+    """Generate board display with explosion marker"""
     keyboard = []
     for i in range(5):
         row = []
         for j in range(5):
             tile = game.board[i][j]
-            text = tile.value if tile.revealed else "🟦"
+            if tile.revealed:
+                if i == exploded_row and j == exploded_col and tile.value == "💣":
+                    text = "💥"  # Exploded bomb marker
+                else:
+                    text = tile.value
+            else:
+                text = "🟦"
             row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
         keyboard.append(row)
     
@@ -309,14 +313,28 @@ async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show the leaderboard."""
+    """Show top 10 players with medals"""
     top_users = db.get_top_users(10)
-    message = "🏆 *Top Players Leaderboard* 🏆\n\n"
     
-    for i, (user_id, username, balance) in enumerate(top_users, 1):
-        message += f"{i}. {username}: {balance} Hiwa\n"
+    if not top_users:
+        await update.message.reply_text("🏆 Leaderboard is empty! Be the first!")
+        return
     
-    await update.message.reply_text(message, parse_mode='Markdown')
+    message = ["🏆 **TOP PLAYERS** 🏆\n"]
+    for idx, (user_id, username, balance) in enumerate(top_users, 1):
+        if idx == 1:
+            prefix = "🥇"
+        elif idx == 2:
+            prefix = "🥈"
+        elif idx == 3:
+            prefix = "🥉"
+        else:
+            prefix = f"{idx}."
+        
+        display_name = username if username else f"User{user_id[:4]}"
+        message.append(f"{prefix} @{display_name} — **{balance:,}** Hiwa")
+    
+    await update.message.reply_text("\n".join(message), parse_mode='Markdown')
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
