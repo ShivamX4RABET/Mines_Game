@@ -30,25 +30,28 @@ class MinesGame:
             
         return board
 
-    def reveal_tile(self, row: int, col: int) -> bool:
-        """Return True if gem, False if mine"""
-        tile = self.board[row][col]
-        tile.revealed = True
-        
-        if tile.value == "💣":
-            self._reveal_all_mines()
-            return False
-            
-        self.gems_revealed += 1
-        self._update_multiplier()
-        return True
+    def reveal_tile(self, row: int, col: int) -> tuple[bool, str]:
+    """Return (success, status) where status: 'gem', 'bomb', 'already_revealed'"""
+    tile = self.board[row][col]
+    
+    if tile.revealed:
+        return False, 'already_revealed'
+    
+    tile.revealed = True
+    
+    if tile.value == "💣":
+        self._reveal_all()
+        return False, 'bomb'
+    
+    self.gems_revealed += 1
+    self._update_multiplier()
+    return True, 'gem'
 
-    def _reveal_all_mines(self):
-        """Reveal all mines when game ends"""
-        for row in self.board:
-            for tile in row:
-                if tile.value == "💣":
-                    tile.revealed = True
+def _reveal_all(self):
+    """Reveal all tiles when bomb is hit"""
+    for row in self.board:
+        for tile in row:
+            tile.revealed = True
 
     def _update_multiplier(self):
         """Update multiplier based on gems found"""
