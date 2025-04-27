@@ -34,20 +34,23 @@ class MinesGame:
     """Return (success, status) where status: 'gem', 'bomb', 'already_revealed'"""
     tile = self.board[row][col]
     
+    # Check if already revealed
     if tile.revealed:
         return False, 'already_revealed'
     
     tile.revealed = True
     
+    # Bomb handling
     if tile.value == "💣":
         self._reveal_all()
         return False, 'bomb'
     
+    # Gem handling
     self.gems_revealed += 1
     self._update_multiplier()
     return True, 'gem'
 
-def _reveal_all(self):
+def _reveal_all(self) -> None:
     """Reveal all tiles when bomb is hit"""
     for row in self.board:
         for tile in row:
