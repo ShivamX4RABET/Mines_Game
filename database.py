@@ -87,13 +87,13 @@ class UserDatabase:
         self.data["users"][str(user_id)]["last_weekly"] = time.isoformat()
         self._save_data()
     
-    def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, int]]:
-        """Get top users by balance."""
-        users = [
-            (int(user_id), data["username"], data["balance"])
-            for user_id, data in self.data["users"].items()
-        ]
-        return sorted(users, key=lambda x: x[2], reverse=True)[:limit]
+    def get_top_users(self, limit: int = 10) -> list[tuple[int, str, int]]:
+    """Efficiently get top users with limit"""
+    users = [
+        (user_id, data.get("username", ""), data["balance"])
+        for user_id, data in self.data["users"].items()
+    ]
+    return sorted(users, key=lambda x: -x[2])[:limit]  # Negative for descending
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
