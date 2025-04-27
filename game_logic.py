@@ -28,16 +28,19 @@ class MinesGame:
     def reveal_tile(self, row: int, col: int) -> Tuple[bool, str]:
         """Return (success, status) where status: 'gem', 'bomb', 'already_revealed'"""
         tile = self.board[row][col]
-        
+    
+        # Check if tile already revealed
         if tile.revealed:
             return False, 'already_revealed'
-        
+    
         tile.revealed = True
-        
+    
+        # Handle bomb click
         if tile.value == "💣":
             self._reveal_all()
             return False, 'bomb'
-        
+    
+        # Handle gem click
         self.gems_revealed += 1
         self._update_multiplier()
         return True, 'gem'
