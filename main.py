@@ -132,36 +132,42 @@ async def send_game_board(update: Update, game: MinesGame, exploded_row: int = -
 
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /mine command and initialize game"""
+    user = update.effective_user
+    user_id = user.id
+
+    # ←— NEW: don’t start if they already have an active game
+    if user_id in user_games:
+        await update.message.reply_text(
+            "❌ You already have an ongoing game! Finish it or cash out before starting a new one."
+        )
+        return
+
     try:
-        user = update.effective_user
-        user_id = user.id
-        
         # Validate command arguments
         if len(context.args) != 2:
             await update.message.reply_text("Usage: /mine <amount> <mines>\nExample: /mine 100 5")
             return
-        
+
         amount = int(context.args[0])
-        mines = int(context.args[1])
-        
+        mines  = int(context.args[1])
+
         # Validate input
         if amount < 1 or mines < 3 or mines > 24:
-            await update.message.reply_text("Invalid input!\nAmount ≥1 | Mines 3-24")
+            await update.message.reply_text("Invalid input!\nAmount ≥1 | Mines 3–24")
             return
-            
+
         # Check balance
         if not db.has_sufficient_balance(user_id, amount):
             await update.message.reply_text("Insufficient balance!")
             return
-            
-        # Deduct balance and start game
+
+        # Deduct and start
         db.deduct_balance(user_id, amount)
         game = MinesGame(amount, mines)
         user_games[user_id] = game
-        
-        # Send initial game board
+
         await send_initial_board(update, context, user_id, game)
-        
+
     except Exception as e:
         logger.error(f"/mine error: {e}")
         await update.message.reply_text("Error starting game. Try again.")
@@ -283,30 +289,42 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         else:
             await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
 
-async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, exploded_row: int = -1, exploded_col: int = -1, context: ContextTypes.DEFAULT_TYPE = None):
-    """Reveal ALL tiles on game end (win or lose)"""
-    # Force reveal all tiles
+async def handle_game_over(
+    update: Update,
+    user_id: int,
+    game: MinesGame,
+    won: bool,
+    exploded_row: int = -1,
+    exploded_col: int = -1,
+    context: ContextTypes.DEFAULT_TYPE = None
+) -> None:
+    """Reveal all tiles, highlight the exploded bomb, and show final result."""
+
+    # If the user hit a bomb, mark that tile with 💥
+    if not won and 0 <= exploded_row < 5 and 0 <= exploded_col < 5:
+        game.board[exploded_row][exploded_col].value = "💥"
+
+    # Reveal every tile on the board
     for i in range(5):
         for j in range(5):
             game.board[i][j].revealed = True
 
-    # Highlight exploded mine
-    if not won and exploded_row != -1 and exploded_col != -1:
-        game.board[exploded_row][exploded_col].value = "💥"
-
-    # Build final fully revealed board
+    # Build the fully‐revealed keyboard
     keyboard = []
     for i in range(5):
-        row = []
+        row_buttons = []
         for j in range(5):
             tile = game.board[i][j]
-            text = tile.value
-            row.append(InlineKeyboardButton(text, callback_data="ignore"))
-        keyboard.append(row)
-    
+            # tile.value is either "💎", "💣", or "💥"
+            row_buttons.append(
+                InlineKeyboardButton(tile.value, callback_data="ignore")
+            )
+        keyboard.append(row_buttons)
+
+    # Add a Play Again button
     keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
 
-    # Prepare message
+    # Prepare the final message text
     if won:
         win_amount = int(game.bet_amount * game.current_multiplier)
         message = (
@@ -321,18 +339,17 @@ async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: b
             f"New Balance: {db.get_balance(user_id)} Hiwa"
         )
 
-    # Update message
+    # Edit the original message to show the final board & result
     try:
         await update.callback_query.edit_message_text(
             text=message,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     except Exception as e:
-        logger.error(f"Game over error: {str(e)}")
-    
-    # Cleanup
-    if user_id in user_games:
-        del user_games[user_id]
+        logger.error(f"Game over error: {e}")
+
+    # Clean up the finished game
+    user_games.pop(user_id, None)
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /cashout command."""
