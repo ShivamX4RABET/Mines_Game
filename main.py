@@ -235,27 +235,34 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     game = user_games[user_id]
     
     if query.data.startswith("reveal_"):
-        # Tile reveal logic
+        # Extract tile coordinates
         _, i, j = query.data.split("_")
         i, j = int(i), int(j)
         
-        if game.reveal_tile(i, j):
-            # Tile was a gem - update board
-            await send_game_board(update, user_id, game, context)
-        else:
-            # Tile was a bomb - game over
-            await handle_game_over(update, user_id, game, won=False, context=context)
+        # Process tile reveal
+        success, status = game.reveal_tile(i, j)
+        
+        if not success:
+            if status == "already_revealed":
+                await query.answer("⛔ Tile already revealed!", show_alert=True)
+            elif status == "bomb":
+                # Pass exploded coordinates to highlight 💥
+                await handle_game_over(update, user_id, game, won=False, exploded_row=i, exploded_col=j, context=context)
+            return
+            
+        # Update board after successful gem reveal
+        await send_game_board(update, user_id, game, context)
+        
     elif query.data == "cashout":
-        # Cashout logic
         if game.gems_revealed >= 2:
+            # Calculate actual win amount
+            win_amount = int(game.bet_amount * game.current_multiplier)
+            db.add_balance(user_id, win_amount)
             await handle_game_over(update, user_id, game, won=True, context=context)
         else:
-            await query.answer("You need at least 2 gems to cash out!", show_alert=True)
-    elif query.data == "new_game":
-        # Handle "Play Again" button
-        await query.edit_message_text("Use /mine <amount> <mines> to start a new game!")
+            await query.answer("❌ You need at least 2 gems to cash out!", show_alert=True)
 
-async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, exploded_row: int = -1, exploded_col: int = -1, context: ContextTypes.DEFAULT_TYPE = None):
     """Handle game over (win or loss)."""
     if won:
         win_amount = game.calculate_winnings()
@@ -282,6 +289,11 @@ async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: b
             tile = game.board[i][j]
             row.append(InlineKeyboardButton(tile.value, callback_data=f"ignore_{i}_{j}"))
         keyboard.append(row)
+       # Show explosion marker
+        for i in range(5):
+        for j in range(5):
+            if i == exploded_row and j == exploded_col and game.board[i][j].value == "💣":
+                game.board[i][j].value = "💥"  # Override with explosion emoji:
     
     keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
     reply_markup = InlineKeyboardMarkup(keyboard)
