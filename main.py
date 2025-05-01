@@ -315,7 +315,6 @@ async def handle_game_over(
         row_buttons = []
         for j in range(5):
             tile = game.board[i][j]
-            # tile.value is either "💎", "💣", or "💥"
             row_buttons.append(
                 InlineKeyboardButton(tile.value, callback_data="ignore")
             )
