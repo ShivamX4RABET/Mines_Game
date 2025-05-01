@@ -27,33 +27,21 @@ class MinesGame:
         return board
 
     def reveal_tile(self, row: int, col: int) -> Tuple[bool, str]:
-        tile = self.board[row][col]
-        if tile.revealed: return False, 'already_revealed'
-        tile.revealed = True
+    tile = self.board[row][col]
+    if tile.revealed:
+        return False, 'already_revealed'
+    tile.revealed = True
 
-        if tile.value == "💣":
-            self.game_over = True
-            self._reveal_all_tiles()
-            return False, 'bomb'
-        else:
-            # Calculate adjacent mines and update tile value
-            adjacent_mines = self._calculate_adjacent_mines(row, col)
-            if adjacent_mines > 0:
-                tile.value = str(adjacent_mines)
-            else:
-                tile.value = "💎"  # Show gem for zero adjacent mines
-            self.gems_revealed += 1
-            self._recalculate_multiplier()
-            return True, 'gem'
-
-    def _calculate_adjacent_mines(self, row: int, col: int) -> int:
-        """Count mines around a tile"""
-        count = 0
-        for i in range(max(0, row-1), min(4, row+1)+1):
-            for j in range(max(0, col-1), min(4, col+1)+1):
-                if self.board[i][j].value == "💣":
-                    count += 1
-        return count
+    if tile.value == "💣":
+        self.game_over = True
+        self._reveal_all_tiles()
+        return False, 'bomb'
+    else:
+        # ALWAYS show a gem for any safe tile
+        tile.value = "💎"
+        self.gems_revealed += 1
+        self._recalculate_multiplier()
+        return True, 'gem'
 
     def _recalculate_multiplier(self) -> None:
         base_rate = 0.25 + (self.mines_count / 24) * 0.5
