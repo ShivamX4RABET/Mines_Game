@@ -274,8 +274,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await query.answer("❌ Error processing tile")
 
     elif query.data == "cashout":
+    # PROPERLY INDENTED BLOCK
     if game.gems_revealed >= 2:
-        # Mark game as over BEFORE calling handle_game_over
         game.game_over = True
         win_amount = int(game.bet_amount * game.current_multiplier)
         db.add_balance(user_id, win_amount)
