@@ -82,19 +82,22 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(f"Your current balance: {balance} Hiwa")
 
 async def send_game_board(update: Update, game: MinesGame, exploded_row: int = -1, exploded_col: int = -1):
-    """Generate board display with explosion marker"""
+    """Show all tiles if game over, otherwise only revealed tiles"""
     keyboard = []
     for i in range(5):
         row = []
         for j in range(5):
             tile = game.board[i][j]
-            if tile.revealed:
+            
+            # Always show tiles if game over
+            if game.game_over or tile.revealed:
                 if i == exploded_row and j == exploded_col and tile.value == "💣":
-                    text = "💥"  # Exploded bomb marker
+                    text = "💥"
                 else:
                     text = tile.value
             else:
                 text = "🟦"
+                
             row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
         keyboard.append(row)
     
@@ -270,31 +273,35 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             logger.error(f"Tile error: {str(e)}")
             await query.answer("❌ Error processing tile")
 
-    # Handle cashout
     elif query.data == "cashout":
-        if game.gems_revealed >= 2:
-            win_amount = int(game.bet_amount * game.current_multiplier)
-            db.add_balance(user_id, win_amount)
-            await handle_game_over(update, user_id, game, won=True, context=context)
-        else:
-            await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
+    if game.gems_revealed >= 2:
+        # Mark game as over BEFORE calling handle_game_over
+        game.game_over = True
+        win_amount = int(game.bet_amount * game.current_multiplier)
+        db.add_balance(user_id, win_amount)
+        await handle_game_over(update, user_id, game, won=True, context=context)
+    else:
+        await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
 
 async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, exploded_row: int = -1, exploded_col: int = -1, context: ContextTypes.DEFAULT_TYPE = None):
-    """Handle game conclusion with explosion marker"""
-    # Mark exploded tile
-    if not won:
-        for i in range(5):
-            for j in range(5):
-                if i == exploded_row and j == exploded_col and game.board[i][j].value == "💣":
-                    game.board[i][j].value = "💥"
+    """Reveal ALL tiles on game end (win or lose)"""
+    # Force reveal all tiles
+    for i in range(5):
+        for j in range(5):
+            game.board[i][j].revealed = True
 
-    # Build final board
+    # Highlight exploded mine
+    if not won and exploded_row != -1 and exploded_col != -1:
+        game.board[exploded_row][exploded_col].value = "💥"
+
+    # Build final fully revealed board
     keyboard = []
     for i in range(5):
         row = []
         for j in range(5):
             tile = game.board[i][j]
-            row.append(InlineKeyboardButton(tile.value, callback_data="ignore"))
+            text = tile.value
+            row.append(InlineKeyboardButton(text, callback_data="ignore"))
         keyboard.append(row)
     
     keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
