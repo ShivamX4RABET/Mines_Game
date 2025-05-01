@@ -274,14 +274,14 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await query.answer("❌ Error processing tile")
 
     elif query.data == "cashout":
-    # PROPERLY INDENTED BLOCK
-    if game.gems_revealed >= 2:
-        game.game_over = True
-        win_amount = int(game.bet_amount * game.current_multiplier)
-        db.add_balance(user_id, win_amount)
-        await handle_game_over(update, user_id, game, won=True, context=context)
-    else:
-        await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
+        # PROPERLY INDENTED BLOCK
+        if game.gems_revealed >= 2:
+            game.game_over = True
+            win_amount = int(game.bet_amount * game.current_multiplier)
+            db.add_balance(user_id, win_amount)
+            await handle_game_over(update, user_id, game, won=True, context=context)
+        else:
+            await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
 
 async def handle_game_over(update: Update, user_id: int, game: MinesGame, won: bool, exploded_row: int = -1, exploded_col: int = -1, context: ContextTypes.DEFAULT_TYPE = None):
     """Reveal ALL tiles on game end (win or lose)"""
