@@ -298,18 +298,24 @@ async def handle_game_over(
     exploded_col: int = -1,
     context: ContextTypes.DEFAULT_TYPE = None
 ) -> None:
-    """Reveal all tiles, highlight the exploded bomb, and show final result."""
+    """Reveal all tiles, highlight the exploded bomb as 💥, show all safe as 💎, and display the result."""
 
-    # If the user hit a bomb, mark that tile with 💥
+    # 1) If they hit a bomb, mark that tile as 💥
     if not won and 0 <= exploded_row < 5 and 0 <= exploded_col < 5:
         game.board[exploded_row][exploded_col].value = "💥"
 
-    # Reveal every tile on the board
+    # 2) Reveal every tile
     for i in range(5):
         for j in range(5):
             game.board[i][j].revealed = True
 
-    # Build the fully‐revealed keyboard
+    # 3) Turn all non‐bombs into gems
+    for i in range(5):
+        for j in range(5):
+            if game.board[i][j].value not in ["💣", "💥"]:
+                game.board[i][j].value = "💎"
+
+    # 4) Build the fully‐revealed keyboard
     keyboard = []
     for i in range(5):
         row_buttons = []
@@ -320,10 +326,10 @@ async def handle_game_over(
             )
         keyboard.append(row_buttons)
 
-    # Add a Play Again button
+    # 5) Add a Play Again button
     keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
 
-    # Prepare the final message text
+    # 6) Prepare the final message text
     if won:
         win_amount = int(game.bet_amount * game.current_multiplier)
         message = (
@@ -338,7 +344,7 @@ async def handle_game_over(
             f"New Balance: {db.get_balance(user_id)} Hiwa"
         )
 
-    # Edit the original message to show the final board & result
+    # 7) Edit the original message to show the final board & result
     try:
         await update.callback_query.edit_message_text(
             text=message,
@@ -347,7 +353,7 @@ async def handle_game_over(
     except Exception as e:
         logger.error(f"Game over error: {e}")
 
-    # Clean up the finished game
+    # 8) Clean up this user's game
     user_games.pop(user_id, None)
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
