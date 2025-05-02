@@ -32,10 +32,11 @@ class UserDatabase:
         """Check if a user exists in the database."""
         return str(user_id) in self.data["users"]
     
-    def add_user(self, user_id: int, username: str, balance: int = 100) -> None:
-        """Add a new user to the database."""
+    def add_user(self, user_id: int, username: Optional[str], first_name: str, balance: int = 100) -> None:
+        """Add a new user, storing both Telegram username (if any) and first name."""
         self.data["users"][str(user_id)] = {
-            "username": username,
+            "username": username or "",
+            "first_name": first_name,
             "balance": balance,
             "last_daily": None,
             "last_weekly": None
