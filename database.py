@@ -88,14 +88,21 @@ class UserDatabase:
         self.data["users"][str(user_id)]["last_weekly"] = time.isoformat()
         self._save_data()
     
-    def get_top_users(self, limit: int = 10) -> list[tuple[int, str, int]]:
-        """Efficiently get top users with limit"""
+    def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, str, int]]:
+        """
+        Returns a list of (user_id, username, first_name, balance)
+        sorted by balance descending, limited to `limit`.
+        """
         users = [
-            (user_id, data.get("username", ""), data["balance"])
-            for user_id, data in self.data["users"].items()
+            (
+                int(uid),
+                data.get("username", ""),
+                data.get("first_name", ""),
+                data["balance"]
+            )
+            for uid, data in self.data["users"].items()
         ]
-        # Sort by balance descending and slice to the requested limit
-        return sorted(users, key=lambda x: -x[2])[:limit]
+        return sorted(users, key=lambda x: -x[3])[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
