@@ -32,7 +32,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
     user = update.effective_user
     if not db.user_exists(user.id):
-        db.add_user(user.id, user.username or user.first_name, 100)
+        db.add_user(
+            user.id,
+            user.username,     # may be None if they have no @username
+            user.first_name,   # always present
+            100
+                )
         await update.message.reply_text(
             f"Welcome to Mines Game, {user.first_name}!\n"
             "You've been given 100 Hiwa to start playing.\n"
@@ -413,28 +418,29 @@ async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show top 10 players with medals"""
-    top_users = db.get_top_users(10)
-    
-    if not top_users:
-        await update.message.reply_text("🏆 Leaderboard is empty! Be the first!")
-        return
-    
-    message = ["🏆 **TOP PLAYERS** 🏆\n"]
-    for idx, (user_id, username, balance) in enumerate(top_users, 1):
-        if idx == 1:
-            prefix = "🥇"
-        elif idx == 2:
-            prefix = "🥈"
-        elif idx == 3:
-            prefix = "🥉"
+    top = db.get_top_users(10)  # now returns (id, username, first_name, balance)
+    if not top:
+        return await update.message.reply_text("🏆 Leaderboard is empty!")
+
+    lines = ["🏆 **TOP PLAYERS** 🏆\n"]
+    medals = ["🥇", "🥈", "🥉"]
+
+    for i, (uid, username, first_name, balance) in enumerate(top, start=1):
+        # pick medal emoji or numeric rank
+        prefix = medals[i-1] if i <= 3 else f"{i}."
+        # if they have a Telegram @username, use it verbatim;
+        # otherwise mention them by name & ID so Telegram links it
+        if username:
+            mention = f"@{username}"
         else:
-            prefix = f"{idx}."
-        
-        display_name = username if username else f"User{user_id[:4]}"
-        message.append(f"{prefix} @{display_name} — **{balance:,}** Hiwa")
-    
-    await update.message.reply_text("\n".join(message), parse_mode='Markdown')
+            mention = f"[{first_name}](tg://user?id={uid})"
+
+        lines.append(f"{prefix} {mention} — **{balance:,}** Hiwa")
+
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode='Markdown'
+    )
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
