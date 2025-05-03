@@ -430,10 +430,8 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         prefix = medals[i-1] if i <= 3 else f"{i}."
         # if they have a Telegram @username, use it verbatim;
         # otherwise mention them by name & ID so Telegram links it
-        if username:
-            mention = f"@{username}"
-        else:
-            mention = f"[{first_name}](tg://user?id={uid})"
+        # Always use first name with user ID link
+        mention = f"[{first_name}](tg://user?id={uid})"
 
         lines.append(f"{prefix} {mention} — **{balance:,}** Hiwa")
 
