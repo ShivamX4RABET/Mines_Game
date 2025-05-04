@@ -87,31 +87,31 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     balance = db.get_balance(user_id)
     await update.message.reply_text(f"Your current balance: {balance} Hiwa")
 
-async def send_game_board(update: Update, game: MinesGame, exploded_row: int = -1, exploded_col: int = -1):
-    """Show all tiles if game over, otherwise only revealed tiles"""
+async def send_game_board(update: Update, game: MinesGame, user_id: int, exploded_row: int = -1, exploded_col: int = -1):
+    """Send updated game board with proper user ID in callbacks"""
     keyboard = []
     for i in range(5):
         row = []
         for j in range(5):
             tile = game.board[i][j]
-            
-            # Always show tiles if game over
+            text = "🟦"
             if game.game_over or tile.revealed:
+                text = tile.value
                 if i == exploded_row and j == exploded_col and tile.value == "💣":
                     text = "💥"
-                else:
-                    text = tile.value
-            else:
-                text = "🟦"
-                
-            row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
+            
+            # Add user ID to callback data
+            row.append(InlineKeyboardButton(
+                text, 
+                callback_data=f"reveal_{i}_{j}_{user_id}"
+            ))
         keyboard.append(row)
     
     if game.gems_revealed >= 2 and not game.game_over:
         keyboard.append([
             InlineKeyboardButton(
                 f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
-                callback_data="cashout"
+                callback_data=f"cashout_{user_id}"
             )
         ])
     
@@ -120,19 +120,14 @@ async def send_game_board(update: Update, game: MinesGame, exploded_row: int = -
         f"Bet: {game.bet_amount} Hiwa\n"
         f"Mines: {game.mines_count}\n"
         f"Gems Found: {game.gems_revealed}/{25 - game.mines_count}\n"
-        f"Multiplier: {game.current_multiplier:.2f}x\n"
-        f"Potential Win: {int(game.bet_amount * game.current_multiplier)} Hiwa"
+        f"Multiplier: {game.current_multiplier:.2f}x"
     )
     
     try:
-        if hasattr(update, 'callback_query'):
-            await update.callback_query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
-        else:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text=text,
-                reply_markup=InlineKeyboardMarkup(keyboard)
-            )
+        await update.callback_query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     except Exception as e:
         logger.error(f"Board update error: {e}")
 
@@ -252,7 +247,6 @@ async def update_board(update: Update, game: MinesGame):
         logger.error(f"Board update error: {e}")
 
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle tile clicks and cashout"""
     query = update.callback_query
     await query.answer()
     
@@ -262,35 +256,31 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     try:
         if data.startswith("reveal_"):
-            _, i, j, target_user_id = data.split("_")
-            i = int(i)
-            j = int(j)
-            target_user_id = int(target_user_id)
+            parts = data.split("_")
+            i, j, target_user_id = int(parts[1]), int(parts[2]), int(parts[3])
         elif data.startswith("cashout_"):
-            _, target_user_id = data.split("_")
-            target_user_id = int(target_user_id)
+            target_user_id = int(data.split("_")[1])
         else:
             return
 
-        # Verify clicker is game owner
+        # Validate user
         if caller_id != target_user_id:
             await query.answer("❌ This isn't your game!", show_alert=True)
             return
 
-        # Get game from nested structure
+        # Retrieve game
         try:
             game = user_games[chat_id][target_user_id]
         except KeyError:
-            await query.edit_message_text("❌ Game expired or invalid!")
+            await query.edit_message_text("❌ Game session expired!")
             return
 
-        # Original game logic with chat_id parameter
         if data.startswith("reveal_"):
             success, status = game.reveal_tile(i, j)
             
             if not success:
                 if status == "already_revealed":
-                    await query.answer("⛔ Already revealed!", show_alert=True)
+                    await query.answer("Already revealed!", show_alert=True)
                 elif status == "bomb":
                     await handle_game_over(
                         update, chat_id, target_user_id, game,
@@ -298,7 +288,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     )
                 return
                 
-            await send_game_board(update, game, i, j)
+            # Pass user_id to send_game_board
+            await send_game_board(update, game, target_user_id, i, j)
 
         elif data.startswith("cashout"):
             if game.gems_revealed >= 2:
@@ -310,11 +301,11 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     won=True, context=context
                 )
             else:
-                await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
+                await query.answer("Need 2+ gems to cash out!", show_alert=True)
 
     except Exception as e:
-        logger.error(f"Button error: {str(e)}")
-        await query.answer("❌ Error processing request")
+        logger.error(f"Button handler error: {e}")
+        await query.answer("Error processing request")
 
 async def handle_game_over(
     update: Update,
