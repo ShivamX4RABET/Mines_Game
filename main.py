@@ -25,8 +25,9 @@ logger = logging.getLogger(__name__)
 # Initialize database
 db = UserDatabase('users.json')
 
-# Game states
-user_games: Dict[int, MinesGame] = {}
+# Changed from: user_games: Dict[int, MinesGame] = {}
+# New structure: {chat_id: {user_id: MinesGame}}
+user_games: Dict[int, Dict[int, MinesGame]] = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
@@ -138,17 +139,17 @@ async def send_game_board(update: Update, game: MinesGame, exploded_row: int = -
 async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /mine command and initialize game"""
     user = update.effective_user
+    chat_id = update.effective_chat.id
     user_id = user.id
 
-    # ←— NEW: don’t start if they already have an active game
-    if user_id in user_games:
+    # Check existing game in this chat
+    if chat_id in user_games and user_id in user_games[chat_id]:
         await update.message.reply_text(
-            "❌ You already have an ongoing game! Finish it or cash out before starting a new one."
+            "❌ You have an ongoing game in this chat! Finish it first."
         )
         return
 
     try:
-        # Validate command arguments
         if len(context.args) != 2:
             await update.message.reply_text("Usage: /mine <amount> <mines>\nExample: /mine 100 5")
             return
@@ -156,54 +157,65 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         amount = int(context.args[0])
         mines  = int(context.args[1])
 
-        # Validate input
         if amount < 1 or mines < 3 or mines > 24:
             await update.message.reply_text("Invalid input!\nAmount ≥1 | Mines 3–24")
             return
 
-        # Check balance
         if not db.has_sufficient_balance(user_id, amount):
             await update.message.reply_text("Insufficient balance!")
             return
 
-        # Deduct and start
         db.deduct_balance(user_id, amount)
         game = MinesGame(amount, mines)
-        user_games[user_id] = game
 
-        await send_initial_board(update, context, user_id, game)
+        # Store game under chat_id and user_id
+        if chat_id not in user_games:
+            user_games[chat_id] = {}
+        user_games[chat_id][user_id] = game
+
+        await send_initial_board(update, context, chat_id, user_id, game)
 
     except Exception as e:
         logger.error(f"/mine error: {e}")
         await update.message.reply_text("Error starting game. Try again.")
 
-async def send_initial_board(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, game: MinesGame) -> None:
-    """Send the first game board with tiles"""
+async def send_initial_board(
+    update: Update, 
+    context: ContextTypes.DEFAULT_TYPE, 
+    chat_id: int, 
+    user_id: int, 
+    game: MinesGame
+) -> None:
+    """Send the first game board with tiles to GROUP CHAT"""
     keyboard = [
-        [InlineKeyboardButton("🟦", callback_data=f"reveal_{i}_{j}") 
-         for j in range(5)
-        ] 
-        for i in range(5)
+        [
+            InlineKeyboardButton(
+                "🟦", 
+                callback_data=f"reveal_{i}_{j}_{user_id}"  # Added user_id
+            ) for j in range(5)
+        ] for i in range(5)
     ]
     
-    # Add cashout button row
-    keyboard.append([InlineKeyboardButton("💰 Initialize Cashout", callback_data="cashout")])
+    keyboard.append([
+        InlineKeyboardButton(
+            "💰 Initialize Cashout", 
+            callback_data=f"cashout_{user_id}"  # Added user_id
+        )
+    ])
     
     text = (
-        f"💎 Mines Game Started! 💣\n"
+        f"💎 {update.effective_user.first_name}'s Mines Game Started! 💣\n"
         f"Bet: {game.bet_amount} Hiwa\n"
         f"Mines: {game.mines_count}\n"
         f"Tap tiles to begin!"
     )
     
-    # Fixed send_message call with proper parenthesis
     message = await context.bot.send_message(
-        chat_id=user_id,
+        chat_id=chat_id,  # Send to group chat
         text=text,
         reply_markup=InlineKeyboardMarkup(keyboard)
-    )  # Closing parenthesis added here
+    )
     
-    # Store message ID for later edits
     game.message_id = message.message_id
 
 async def update_board(update: Update, game: MinesGame):
@@ -244,122 +256,134 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     query = update.callback_query
     await query.answer()
     
-    user_id = query.from_user.id
-    if user_id not in user_games:
-        await query.edit_message_text("❌ Session expired! Use /mine to start new game")
-        return
-    
-    game = user_games[user_id]
+    chat_id = update.effective_chat.id
+    caller_id = query.from_user.id
+    data = query.data
 
-    # Handle tile reveal
-    if query.data.startswith("reveal_"):
-        try:
-            _, i, j = query.data.split("_")
+    try:
+        if data.startswith("reveal_"):
+            _, i, j, target_user_id = data.split("_")
             i = int(i)
             j = int(j)
-            
-            # Validate coordinates
-            if not (0 <= i < 5 and 0 <= j < 5):
-                await query.answer("⚠️ Invalid tile!", show_alert=True)
-                return
+            target_user_id = int(target_user_id)
+        elif data.startswith("cashout_"):
+            _, target_user_id = data.split("_")
+            target_user_id = int(target_user_id)
+        else:
+            return
 
-            # Process reveal
+        # Verify clicker is game owner
+        if caller_id != target_user_id:
+            await query.answer("❌ This isn't your game!", show_alert=True)
+            return
+
+        # Get game from nested structure
+        try:
+            game = user_games[chat_id][target_user_id]
+        except KeyError:
+            await query.edit_message_text("❌ Game expired or invalid!")
+            return
+
+        # Original game logic with chat_id parameter
+        if data.startswith("reveal_"):
             success, status = game.reveal_tile(i, j)
             
             if not success:
                 if status == "already_revealed":
                     await query.answer("⛔ Already revealed!", show_alert=True)
                 elif status == "bomb":
-                    await handle_game_over(update, user_id, game, 
-                                        won=False, 
-                                        exploded_row=i, 
-                                        exploded_col=j, 
-                                        context=context)
+                    await handle_game_over(
+                        update, chat_id, target_user_id, game,
+                        won=False, exploded_row=i, exploded_col=j, context=context
+                    )
                 return
                 
-            # Update board after successful reveal
             await send_game_board(update, game, i, j)
 
-        except Exception as e:
-            logger.error(f"Tile error: {str(e)}")
-            await query.answer("❌ Error processing tile")
+        elif data.startswith("cashout"):
+            if game.gems_revealed >= 2:
+                game.game_over = True
+                win_amount = int(game.bet_amount * game.current_multiplier)
+                db.add_balance(target_user_id, win_amount)
+                await handle_game_over(
+                    update, chat_id, target_user_id, game,
+                    won=True, context=context
+                )
+            else:
+                await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
 
-    elif query.data == "cashout":
-        # PROPERLY INDENTED BLOCK
-        if game.gems_revealed >= 2:
-            game.game_over = True
-            win_amount = int(game.bet_amount * game.current_multiplier)
-            db.add_balance(user_id, win_amount)
-            await handle_game_over(update, user_id, game, won=True, context=context)
-        else:
-            await query.answer("❌ Need 2+ gems to cash out!", show_alert=True)
+    except Exception as e:
+        logger.error(f"Button error: {str(e)}")
+        await query.answer("❌ Error processing request")
 
 async def handle_game_over(
     update: Update,
-    user_id: int,
+    chat_id: int,  # NEW: Group chat ID where game exists
+    user_id: int,   # NEW: User ID of game owner
     game: MinesGame,
     won: bool,
     exploded_row: int = -1,
     exploded_col: int = -1,
     context: ContextTypes.DEFAULT_TYPE = None
 ) -> None:
-    """Reveal all tiles, highlight the exploded bomb as 💥, show all safe as 💎, and display the result."""
-
-    # 1) If they hit a bomb, mark that tile as 💥
+    """Handle game conclusion with group chat support"""
+    # 1. Mark exploded bomb if applicable
     if not won and 0 <= exploded_row < 5 and 0 <= exploded_col < 5:
         game.board[exploded_row][exploded_col].value = "💥"
 
-    # 2) Reveal every tile
-    for i in range(5):
-        for j in range(5):
-            game.board[i][j].revealed = True
+    # 2. Reveal all tiles
+    for row in game.board:
+        for tile in row:
+            tile.revealed = True
+            if tile.value not in ["💣", "💥"]:
+                tile.value = "💎"
 
-    # 3) Turn all non‐bombs into gems
-    for i in range(5):
-        for j in range(5):
-            if game.board[i][j].value not in ["💣", "💥"]:
-                game.board[i][j].value = "💎"
-
-    # 4) Build the fully‐revealed keyboard
+    # 3. Build final keyboard
     keyboard = []
     for i in range(5):
-        row_buttons = []
+        row = []
         for j in range(5):
             tile = game.board[i][j]
-            row_buttons.append(
-                InlineKeyboardButton(tile.value, callback_data="ignore")
-            )
-        keyboard.append(row_buttons)
+            row.append(InlineKeyboardButton(tile.value, callback_data="ignore"))
+        keyboard.append(row)
+    
+    # 4. Add play again button
+    keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data=f"newgame_{user_id}")])
 
-    # 5) Add a Play Again button
-    keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data="new_game")])
-
-    # 6) Prepare the final message text
+    # 5. Prepare result message
+    balance = db.get_balance(user_id)
     if won:
         win_amount = int(game.bet_amount * game.current_multiplier)
         message = (
-            f"🎉 Cashout Successful!\n"
+            f"🎉 {update.effective_user.first_name} Cashed Out!\n"
             f"Won: {win_amount} Hiwa\n"
-            f"New Balance: {db.get_balance(user_id)} Hiwa"
+            f"New Balance: {balance} Hiwa"
         )
     else:
         message = (
-            f"💥 Game Over!\n"
+            f"💥 {update.effective_user.first_name} Hit a Mine!\n"
             f"Lost: {game.bet_amount} Hiwa\n"
-            f"New Balance: {db.get_balance(user_id)} Hiwa"
+            f"New Balance: {balance} Hiwa"
         )
 
-    # 7) Edit the original message to show the final board & result
+    # 6. Edit original message in group chat
     try:
         await update.callback_query.edit_message_text(
             text=message,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     except Exception as e:
-        logger.error(f"Game over error: {e}")
+        logger.error(f"Game over message error: {e}")
 
-    # 8) Clean up this user's game
-    user_games.pop(user_id, None)
+    # 7. Cleanup game state - CRITICAL NEW PART
+    try:
+        # Remove from nested storage
+        del user_games[chat_id][user_id]
+        # Cleanup empty chat entry
+        if not user_games[chat_id]:
+            del user_games[chat_id]
+    except KeyError:
+        pass
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /cashout command."""
