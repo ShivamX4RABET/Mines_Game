@@ -399,6 +399,9 @@ async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Reuse your existing handle_game_over
     await handle_game_over(update, chat_id, user_id, game, won=True, context=context)
 
+async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("You received your daily bonus!")
+
 async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /weekly command."""
     user_id = update.effective_user.id
