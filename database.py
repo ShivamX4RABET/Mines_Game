@@ -5,7 +5,7 @@ import datetime  # Added import for time handling
 from pathlib import Path
 
 DATA_DIR = Path(os.getenv("PERSISTENT_STORAGE_PATH", "persistent_data"))
-DATA_DIR.mkdir(exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 class UserDatabase:
     def __init__(self, filename: str):
