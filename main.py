@@ -210,6 +210,39 @@ async def send_initial_board(
     
     game.message_id = message.message_id
 
+async def update_board(update: Update, game: MinesGame):
+    """Refresh game board with revealed tiles"""
+    keyboard = []
+    for i in range(5):
+        row = []
+        for j in range(5):
+            tile = game.board[i][j]
+            text = tile.value if tile.revealed else "🟦"
+            row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
+        keyboard.append(row)
+    
+    if game.gems_revealed >= 2 and not game.game_over:
+        keyboard.append([InlineKeyboardButton(
+            f"💰 Cash Out ({game.multiplier:.2f}x)", 
+            callback_data="cashout"
+        )])
+    
+    text = (
+        f"💎 Mines Game 💣\n"
+        f"Bet: {game.bet_amount} Hiwa\n"
+        f"Mines: {game.mines_count}\n"
+        f"Gems Found: {game.gems_revealed}\n"
+        f"Multiplier: {game.multiplier:.2f}x"
+    )
+    
+    try:
+        await update.callback_query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    except Exception as e:
+        logger.error(f"Board update error: {e}")
+
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
