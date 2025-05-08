@@ -22,9 +22,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize database
-db = UserDatabase('users.json')
-
 # Changed from: user_games: Dict[int, MinesGame] = {}
 # New structure: {chat_id: {user_id: MinesGame}}
 user_games: Dict[int, Dict[int, MinesGame]] = {}
@@ -213,39 +210,6 @@ async def send_initial_board(
     
     game.message_id = message.message_id
 
-async def update_board(update: Update, game: MinesGame):
-    """Refresh game board with revealed tiles"""
-    keyboard = []
-    for i in range(5):
-        row = []
-        for j in range(5):
-            tile = game.board[i][j]
-            text = tile.value if tile.revealed else "🟦"
-            row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
-        keyboard.append(row)
-    
-    if game.gems_revealed >= 2 and not game.game_over:
-        keyboard.append([InlineKeyboardButton(
-            f"💰 Cash Out ({game.multiplier:.2f}x)", 
-            callback_data="cashout"
-        )])
-    
-    text = (
-        f"💎 Mines Game 💣\n"
-        f"Bet: {game.bet_amount} Hiwa\n"
-        f"Mines: {game.mines_count}\n"
-        f"Gems Found: {game.gems_revealed}\n"
-        f"Multiplier: {game.multiplier:.2f}x"
-    )
-    
-    try:
-        await update.callback_query.edit_message_text(
-            text=text,
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-    except Exception as e:
-        logger.error(f"Board update error: {e}")
-
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -253,6 +217,10 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     chat_id = update.effective_chat.id
     caller_id = query.from_user.id
     data = query.data
+    # === ADD THIS IGNORE CHECK ===
+    if data == "ignore":
+        return
+    # =============================
 
     try:
         if data.startswith("reveal_"):
@@ -299,7 +267,13 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                 await handle_game_over(
                     update, chat_id, target_user_id, game,
                     won=True, context=context
-                )
+                ) 
+                elif data.startswith("newgame_"):
+            # Extract target and start fresh
+            target_user_id = int(data.split("_")[1])
+            # You can reuse /mine logic or simply call start_game:
+            await start_game(update, context)
+            return
             else:
                 await query.answer("Need 2+ gems to cash out!", show_alert=True)
 
@@ -377,39 +351,26 @@ async def handle_game_over(
         pass
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /cashout command."""
+    """Handle /cashout command with group-chat support."""
     user_id = update.effective_user.id
-    if user_id not in user_games:
-        await update.message.reply_text("You don't have an active game to cash out.")
-        return
-    
-    game = user_games[user_id]
-    if game.gems_revealed < 2:
-        await update.message.reply_text("You need at least 2 gems revealed to cash out!")
-        return
-    
-    await handle_game_over(update, user_id, game, won=True, context=context)
+    chat_id = update.effective_chat.id
 
-async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /daily command."""
-    user_id = update.effective_user.id
-    last_daily = db.get_last_daily(user_id)
-    
-    if last_daily and (datetime.datetime.now() - last_daily).total_seconds() < 24 * 3600:
-        next_claim = last_daily + datetime.timedelta(hours=24)
-        await update.message.reply_text(
-            f"You've already claimed your daily bonus today.\n"
-            f"Next claim available at {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
-        )
+    # Check nested dict: chat → user
+    if chat_id not in user_games or user_id not in user_games[chat_id]:
+        await update.message.reply_text("❌ You don't have an active game to cash out.")
         return
-    
-    amount = 50  # Daily bonus amount
-    db.add_balance(user_id, amount)
-    db.set_last_daily(user_id, datetime.datetime.now())
-    await update.message.reply_text(
-        f"🎁 You claimed your daily bonus of {amount} Hiwa!\n"
-        f"New balance: {db.get_balance(user_id)} Hiwa"
-    )
+
+    game = user_games[chat_id][user_id]
+    if game.gems_revealed < 2:
+        await update.message.reply_text("❌ You need at least 2 gems to cash out.")
+        return
+
+    # Perform cashout
+    game.game_over = True
+    win_amount = int(game.bet_amount * game.current_multiplier)
+    db.add_balance(user_id, win_amount)
+    # Reuse your existing handle_game_over
+    await handle_game_over(update, chat_id, user_id, game, won=True, context=context)
 
 async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /weekly command."""
@@ -568,6 +529,7 @@ def main() -> None:
     application = Application.builder().token(config.TOKEN).build()
     
     # Command handlers
+    application.add_handler(CallbackQueryHandler(button_click))
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("balance", balance))
