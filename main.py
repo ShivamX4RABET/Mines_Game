@@ -213,73 +213,100 @@ async def send_initial_board(
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    
-    chat_id = update.effective_chat.id
-    caller_id = query.from_user.id
     data = query.data
-    # === ADD THIS IGNORE CHECK ===
+
+    # Ignore revealed buttons
     if data == "ignore":
         return
-    # =============================
 
-    try:
-        if data.startswith("reveal_"):
-            parts = data.split("_")
-            i, j, target_user_id = int(parts[1]), int(parts[2]), int(parts[3])
-        elif data.startswith("cashout_"):
-            target_user_id = int(data.split("_")[1])
+    if data.startswith("reveal_"):
+        parts = data.split("_")
+        if len(parts) != 3:
+            await query.edit_message_text("Invalid reveal format.")
+            return
+
+        user_id = int(parts[1])
+        idx = int(parts[2])
+
+        if query.from_user.id != user_id:
+            await query.edit_message_text("This is not your game.")
+            return
+
+        if user_id not in user_games:
+            await query.edit_message_text("Game not found.")
+            return
+
+        game = user_games[user_id]
+        result, reward = game.reveal(idx)
+
+        if result == "💣":
+            del user_games[user_id]
+            await query.edit_message_text(
+                f"💥 Boom! You hit a bomb at spot {idx + 1}.\n\n"
+                f"💰 You lost your bet of {game.bet} coins.",
+                reply_markup=None
+            )
         else:
+            await query.edit_message_text(
+                f"✅ Safe! You revealed spot {idx + 1}.\n"
+                f"Current Multiplier: x{game.get_multiplier():.2f}\n"
+                f"Revealed: {game.revealed.count(True)} spots\n\n"
+                f"💰 Potential Cashout: {game.bet * game.get_multiplier():.2f} coins",
+                reply_markup=get_game_keyboard(user_id, game)
+            )
+
+    elif data.startswith("cashout_"):
+        parts = data.split("_")
+        if len(parts) != 2:
+            await query.edit_message_text("Invalid cashout format.")
             return
 
-        # Validate user
-        if caller_id != target_user_id:
-            await query.answer("❌ This isn't your game!", show_alert=True)
+        user_id = int(parts[1])
+
+        if query.from_user.id != user_id:
+            await query.edit_message_text("This is not your game.")
             return
 
-        # Retrieve game
-        try:
-            game = user_games[chat_id][target_user_id]
-        except KeyError:
-            await query.edit_message_text("❌ Game session expired!")
+        if user_id not in user_games:
+            await query.edit_message_text("Game not found.")
             return
 
-        if data.startswith("reveal_"):
-            success, status = game.reveal_tile(i, j)
-            
-            if not success:
-                if status == "already_revealed":
-                    await query.answer("Already revealed!", show_alert=True)
-                elif status == "bomb":
-                    await handle_game_over(
-                        update, chat_id, target_user_id, game,
-                        won=False, exploded_row=i, exploded_col=j, context=context
-                    )
-                return
-                
-            # Pass user_id to send_game_board
-            await send_game_board(update, game, target_user_id, i, j)
+        game = user_games[user_id]
+        earnings = game.bet * game.get_multiplier()
+        del user_games[user_id]
 
-        elif data.startswith("cashout"):
-            if game.gems_revealed >= 2:
-                game.game_over = True
-                win_amount = int(game.bet_amount * game.current_multiplier)
-                db.add_balance(target_user_id, win_amount)
-                await handle_game_over(
-                    update, chat_id, target_user_id, game,
-                    won=True, context=context
-                ) 
-                elif data.startswith("newgame_"):
-            # Extract target and start fresh
-            target_user_id = int(data.split("_")[1])
-            # You can reuse /mine logic or simply call start_game:
-            await start_game(update, context)
+        await query.edit_message_text(
+            f"💸 You cashed out safely!\n"
+            f"💰 You earned {earnings:.2f} coins.",
+            reply_markup=None
+        )
+
+    elif data.startswith("newgame_"):
+        parts = data.split("_")
+        if len(parts) != 4:
+            await query.edit_message_text("Invalid newgame format.")
             return
-            else:
-                await query.answer("Need 2+ gems to cash out!", show_alert=True)
 
-    except Exception as e:
-        logger.error(f"Button handler error: {e}")
-        await query.answer("Error processing request")
+        user_id = int(parts[1])
+        bet = int(parts[2])
+        mines = int(parts[3])
+
+        if query.from_user.id != user_id:
+            await query.edit_message_text("This button is not for your game.")
+            return
+
+        game = Game(user_id, bet, mines)
+        user_games[user_id] = game
+
+        await query.edit_message_text(
+            f"🧨 New Game Started!\n"
+            f"Bet: {bet} coins\n"
+            f"Mines: {mines}",
+            reply_markup=get_game_keyboard(user_id, game)
+        )
+
+    else:
+        await query.edit_message_text("❌ Unknown action.")
 
 async def handle_game_over(
     update: Update,
