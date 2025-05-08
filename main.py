@@ -246,100 +246,63 @@ async def update_board(update: Update, game: MinesGame):
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    
+    chat_id = update.effective_chat.id
+    caller_id = query.from_user.id
     data = query.data
 
-    # Ignore revealed buttons
-    if data == "ignore":
-        return
-
-    if data.startswith("reveal_"):
-        parts = data.split("_")
-        if len(parts) != 3:
-            await query.edit_message_text("Invalid reveal format.")
-            return
-
-        user_id = int(parts[1])
-        idx = int(parts[2])
-
-        if query.from_user.id != user_id:
-            await query.edit_message_text("This is not your game.")
-            return
-
-        if user_id not in user_games:
-            await query.edit_message_text("Game not found.")
-            return
-
-        game = user_games[user_id]
-        result, reward = game.reveal(idx)
-
-        if result == "💣":
-            del user_games[user_id]
-            await query.edit_message_text(
-                f"💥 Boom! You hit a bomb at spot {idx + 1}.\n\n"
-                f"💰 You lost your bet of {game.bet} coins.",
-                reply_markup=None
-            )
+    try:
+        if data.startswith("reveal_"):
+            parts = data.split("_")
+            i, j, target_user_id = int(parts[1]), int(parts[2]), int(parts[3])
+        elif data.startswith("cashout_"):
+            target_user_id = int(data.split("_")[1])
         else:
-            await query.edit_message_text(
-                f"✅ Safe! You revealed spot {idx + 1}.\n"
-                f"Current Multiplier: x{game.get_multiplier():.2f}\n"
-                f"Revealed: {game.revealed.count(True)} spots\n\n"
-                f"💰 Potential Cashout: {game.bet * game.get_multiplier():.2f} coins",
-                reply_markup=get_game_keyboard(user_id, game)
-            )
-
-    elif data.startswith("cashout_"):
-        parts = data.split("_")
-        if len(parts) != 2:
-            await query.edit_message_text("Invalid cashout format.")
             return
 
-        user_id = int(parts[1])
-
-        if query.from_user.id != user_id:
-            await query.edit_message_text("This is not your game.")
+        # Validate user
+        if caller_id != target_user_id:
+            await query.answer("❌ This isn't your game!", show_alert=True)
             return
 
-        if user_id not in user_games:
-            await query.edit_message_text("Game not found.")
+        # Retrieve game
+        try:
+            game = user_games[chat_id][target_user_id]
+        except KeyError:
+            await query.edit_message_text("❌ Game session expired!")
             return
 
-        game = user_games[user_id]
-        earnings = game.bet * game.get_multiplier()
-        del user_games[user_id]
+        if data.startswith("reveal_"):
+            success, status = game.reveal_tile(i, j)
+            
+            if not success:
+                if status == "already_revealed":
+                    await query.answer("Already revealed!", show_alert=True)
+                elif status == "bomb":
+                    await handle_game_over(
+                        update, chat_id, target_user_id, game,
+                        won=False, exploded_row=i, exploded_col=j, context=context
+                    )
+                return
+                
+            # Pass user_id to send_game_board
+            await send_game_board(update, game, target_user_id, i, j)
 
-        await query.edit_message_text(
-            f"💸 You cashed out safely!\n"
-            f"💰 You earned {earnings:.2f} coins.",
-            reply_markup=None
-        )
+        elif data.startswith("cashout"):
+            if game.gems_revealed >= 2:
+                game.game_over = True
+                win_amount = int(game.bet_amount * game.current_multiplier)
+                db.add_balance(target_user_id, win_amount)
+                await handle_game_over(
+                    update, chat_id, target_user_id, game,
+                    won=True, context=context
+                )
+            else:
+                await query.answer("Need 2+ gems to cash out!", show_alert=True)
 
-    elif data.startswith("newgame_"):
-        parts = data.split("_")
-        if len(parts) != 4:
-            await query.edit_message_text("Invalid newgame format.")
-            return
-
-        user_id = int(parts[1])
-        bet = int(parts[2])
-        mines = int(parts[3])
-
-        if query.from_user.id != user_id:
-            await query.edit_message_text("This button is not for your game.")
-            return
-
-        game = Game(user_id, bet, mines)
-        user_games[user_id] = game
-
-        await query.edit_message_text(
-            f"🧨 New Game Started!\n"
-            f"Bet: {bet} coins\n"
-            f"Mines: {mines}",
-            reply_markup=get_game_keyboard(user_id, game)
-        )
-
-    else:
-        await query.edit_message_text("❌ Unknown action.")
+    except Exception as e:
+        logger.error(f"Button handler error: {e}")
+        await query.answer("Error processing request")
 
 async def handle_game_over(
     update: Update,
@@ -411,29 +374,39 @@ async def handle_game_over(
         pass
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /cashout command with group-chat support."""
+    """Handle /cashout command."""
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-
-    # Check nested dict: chat → user
-    if chat_id not in user_games or user_id not in user_games[chat_id]:
-        await update.message.reply_text("❌ You don't have an active game to cash out.")
+    if user_id not in user_games:
+        await update.message.reply_text("You don't have an active game to cash out.")
         return
-
-    game = user_games[chat_id][user_id]
+    
+    game = user_games[user_id]
     if game.gems_revealed < 2:
-        await update.message.reply_text("❌ You need at least 2 gems to cash out.")
+        await update.message.reply_text("You need at least 2 gems revealed to cash out!")
         return
+    
+    await handle_game_over(update, user_id, game, won=True, context=context)
 
-    # Perform cashout
-    game.game_over = True
-    win_amount = int(game.bet_amount * game.current_multiplier)
-    db.add_balance(user_id, win_amount)
-    # Reuse your existing handle_game_over
-    await handle_game_over(update, chat_id, user_id, game, won=True, context=context)
-
-async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("You received your daily bonus!")
+async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /daily command."""
+    user_id = update.effective_user.id
+    last_daily = db.get_last_daily(user_id)
+    
+    if last_daily and (datetime.datetime.now() - last_daily).total_seconds() < 24 * 3600:
+        next_claim = last_daily + datetime.timedelta(hours=24)
+        await update.message.reply_text(
+            f"You've already claimed your daily bonus today.\n"
+            f"Next claim available at {next_claim.strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+        return
+    
+    amount = 50  # Daily bonus amount
+    db.add_balance(user_id, amount)
+    db.set_last_daily(user_id, datetime.datetime.now())
+    await update.message.reply_text(
+        f"🎁 You claimed your daily bonus of {amount} Hiwa!\n"
+        f"New balance: {db.get_balance(user_id)} Hiwa"
+    )
 
 async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /weekly command."""
@@ -592,7 +565,6 @@ def main() -> None:
     application = Application.builder().token(config.TOKEN).build()
     
     # Command handlers
-    application.add_handler(CallbackQueryHandler(button_click))
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("balance", balance))
@@ -616,3 +588,4 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+    
