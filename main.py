@@ -374,18 +374,26 @@ async def handle_game_over(
         pass
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /cashout command."""
+    """Handle /cashout command with group-chat support."""
     user_id = update.effective_user.id
-    if user_id not in user_games:
-        await update.message.reply_text("You don't have an active game to cash out.")
+    chat_id = update.effective_chat.id
+
+    # Check nested dict: chat → user
+    if chat_id not in user_games or user_id not in user_games[chat_id]:
+        await update.message.reply_text("❌ You don't have an active game to cash out.")
         return
-    
-    game = user_games[user_id]
+
+    game = user_games[chat_id][user_id]
     if game.gems_revealed < 2:
-        await update.message.reply_text("You need at least 2 gems revealed to cash out!")
+        await update.message.reply_text("❌ You need at least 2 gems to cash out.")
         return
-    
-    await handle_game_over(update, user_id, game, won=True, context=context)
+
+    # Perform cashout
+    game.game_over = True
+    win_amount = int(game.bet_amount * game.current_multiplier)
+    db.add_balance(user_id, win_amount)
+    # Reuse your existing handle_game_over
+    await handle_game_over(update, chat_id, user_id, game, won=True, context=context)
 
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /daily command."""
