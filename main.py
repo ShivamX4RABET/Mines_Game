@@ -1,4 +1,6 @@
 import logging
+from telegram.constants import ParseMode
+from telegram import MessageEntity, User
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
     Application,
@@ -541,9 +543,6 @@ async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         text=f"🎁 You received {amount} Hiwa from @{update.effective_user.username}!\n"
              f"New balance: {recipient_balance} Hiwa"
     )
-
-from telegram.constants import ParseMode
-from telegram import MessageEntity, User
 
 async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id not in config.ADMINS:
