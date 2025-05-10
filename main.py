@@ -395,6 +395,38 @@ async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Reuse your existing handle_game_over
     await handle_game_over(update, chat_id, user_id, game, won=True, context=context)
 
+async def end_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /end — cancel an ongoing game and refund the bet."""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    # No active game?
+    if chat_id not in user_games or user_id not in user_games[chat_id]:
+        await update.message.reply_text("❌ You don’t have an active game to end.")
+        return
+
+    game = user_games[chat_id][user_id]
+
+    # If the game already finished, disallow
+    if game.game_over:
+        await update.message.reply_text("❌ This game has already ended.")
+        return
+
+    # Refund original bet
+    db.add_balance(user_id, game.bet_amount)
+    new_balance = db.get_balance(user_id)
+
+    # Clean up state exactly as in handle_game_over
+    del user_games[chat_id][user_id]
+    if not user_games[chat_id]:
+        del user_games[chat_id]
+
+    # Let the user know
+    await update.message.reply_text(
+        f"🛑 Game cancelled. Your bet of {game.bet_amount} Hiwa has been refunded.\n"
+        f"Current balance: {new_balance} Hiwa"
+    )
+
 async def daily_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /daily command."""
     user_id = update.effective_user.id
@@ -578,6 +610,7 @@ def main() -> None:
     application.add_handler(CommandHandler("balance", balance))
     application.add_handler(CommandHandler("mine", start_game))
     application.add_handler(CommandHandler("cashout", cashout_command))
+    application.add_handler(CommandHandler("end", end_game))
     application.add_handler(CommandHandler("daily", daily_bonus))
     application.add_handler(CommandHandler("weekly", weekly_bonus))
     application.add_handler(CommandHandler("leaderboard", leaderboard))
