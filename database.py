@@ -9,16 +9,36 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 class UserDatabase:
     def __init__(self, filename: str):
-        self.filename = str(DATA_DIR / filename)  # <-- This line changed
-        self.data = self._load_data() 
+        self.filename = str(DATA_DIR / filename)
+        self.data = self._load_data()
     
     def _load_data(self) -> Dict[str, Any]:
-        """Load user data from JSON file."""
+        """Load data from JSON file with groups support"""
         if not os.path.exists(self.filename):
-            return {"users": {}}
+            return {"users": {}, "groups": []}  # Added groups array
         
         with open(self.filename, 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+            # Backward compatibility: add groups if missing
+            if "groups" not in data:
+                data["groups"] = []
+            return data
+
+    def add_group(self, group_id: int) -> None:
+        """Add a group to the database if not already present"""
+        if group_id not in self.data["groups"]:
+            self.data["groups"].append(group_id)
+            self._save_data()
+
+    def remove_group(self, group_id: int) -> None:
+        """Remove a group from the database"""
+        if group_id in self.data["groups"]:
+            self.data["groups"].remove(group_id)
+            self._save_data()
+
+    def get_all_groups(self) -> List[int]:
+        """Get all group IDs where the bot is present"""
+        return self.data["groups"]
     
     def _save_data(self) -> None:
         """Save user data to JSON file."""
