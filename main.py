@@ -49,6 +49,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"Your current balance: {db.get_balance(user.id)} Hiwa\n"
             "Use /help to see available commands."
         )
+        
+async def track_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Track when the bot is added to groups"""
+    if update.message and update.message.new_chat_members:
+        if context.bot.id in [u.id for u in update.message.new_chat_members]:
+            group_id = update.message.chat_id
+            db.add_group(group_id)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
@@ -545,7 +552,7 @@ async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Admin command to broadcast a message to all users."""
+    """Admin command to broadcast a message to all users and groups."""
     user_id = update.effective_user.id
     if user_id not in config.ADMINS:
         await update.message.reply_text("This command is for admins only.")
@@ -557,14 +564,26 @@ async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     message = " ".join(context.args)
     users = db.get_all_users()
-    
-    for user_id in users:
+    groups = db.get_all_groups()  # Ensure this function exists in your database handler
+    all_chats = users + groups
+
+    # Create invisible mention using the admin's ID
+    admin_id = user_id
+    invisible_mention = f'<a href="tg://user?id={admin_id}">&#8203;</a>'  # Zero-width space
+    broadcast_text = f"📢 Admin Broadcast:\n\n{message}{invisible_mention}"
+
+    # Send to all chats (users + groups)
+    for chat_id in all_chats:
         try:
-            await context.bot.send_message(chat_id=user_id, text=f"📢 Admin Broadcast:\n\n{message}")
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=broadcast_text,
+                parse_mode="HTML"  # Required for HTML formatting
+            )
         except Exception as e:
-            logger.error(f"Failed to send broadcast to {user_id}: {e}")
+            logger.error(f"Failed to send broadcast to {chat_id}: {e}")
     
-    await update.message.reply_text(f"Broadcast sent to {len(users)} users.")
+    await update.message.reply_text(f"Broadcast sent to {len(all_chats)} chats (users and groups).")
 
 async def admin_reset_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to reset all user data."""
@@ -605,6 +624,9 @@ async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 def main() -> None:
     """Start the bot."""
     application = Application.builder().token(config.TOKEN).build()
+
+    # Message Handler
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_groups))
     
     # Command handlers
     application.add_handler(CommandHandler("start", start))
