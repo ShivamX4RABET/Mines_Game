@@ -545,46 +545,26 @@ async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_user.id not in config.ADMINS:
+    """Admin command to broadcast a message to all users."""
+    user_id = update.effective_user.id
+    if user_id not in config.ADMINS:
         await update.message.reply_text("This command is for admins only.")
         return
-
+    
     if not context.args:
         await update.message.reply_text("Usage: /broadcast <message>")
         return
-
-    message = ' '.join(context.args)
-
-    # Send to all users privately
-    user_ids = db.get_all_user_ids()
-    for user_id in user_ids:
+    
+    message = " ".join(context.args)
+    users = db.get_all_users()
+    
+    for user_id in users:
         try:
-            await context.bot.send_message(chat_id=user_id, text=message)
-        except:
-            pass  # Ignore failures (e.g., user blocked the bot)
-
-    # Create silent mentions for the group
-    text = message + "\n\n"
-    entities = []
-    offset = len(text)
-    for user_id in user_ids:
-        # Mention will not be visible, but will notify the user
-        mention_text = "."
-        text += mention_text
-        entities.append(MessageEntity(type="text_mention", offset=offset, length=1, user=User(id=user_id, first_name="User")))
-        offset += 1
-
-    try:
-        await context.bot.send_message(
-            chat_id=config.GROUP_CHAT_ID,
-            text=text,
-            entities=entities,
-            parse_mode=ParseMode.HTML
-        )
-    except Exception as e:
-        await update.message.reply_text(f"Failed to send to group chat: {e}")
-    else:
-        await update.message.reply_text("Broadcast sent to all users and group chat.")
+            await context.bot.send_message(chat_id=user_id, text=f"📢 Admin Broadcast:\n\n{message}")
+        except Exception as e:
+            logger.error(f"Failed to send broadcast to {user_id}: {e}")
+    
+    await update.message.reply_text(f"Broadcast sent to {len(users)} users.")
 
 async def admin_reset_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to reset all user data."""
