@@ -73,6 +73,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 /leaderboard - Show top players
 /gift @username <amount> - Send Hiwa to another player
 
+*New Features:*
+/store - View and buy emojis
+/collection - View your owned emojis
+/give [emoji] - Gift an emoji (reply to user)
+
 *Game Rules:*
 1. 5x5 grid with hidden gems (💎) and bombs (💣)
 2. Choose how many bombs (3-24) when starting
@@ -748,6 +753,9 @@ def main() -> None:
     application.add_handler(CommandHandler("weekly", weekly_bonus))
     application.add_handler(CommandHandler("leaderboard", leaderboard))
     application.add_handler(CommandHandler("gift", gift))
+    application.add_handler(CommandHandler("store", store))
+    application.add_handler(CommandHandler("collection", collection))
+    application.add_handler(CommandHandler("give", gift))
     
     # Admin commands
     application.add_handler(CommandHandler("broadcast", admin_broadcast))
