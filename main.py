@@ -270,27 +270,58 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     data = query.data
 
     try:
+        # Handle store purchases FIRST
+        if data.startswith("buy_"):
+            emoji = data.split("_")[1]
+            user_id = caller_id  # Use the actual caller ID
+            store_items = db.get_emoji_store()
+            
+            # Find the item in store
+            item = next((i for i in store_items if i['emoji'] == emoji), None)
+            if not item:
+                await query.answer("❌ This emoji is no longer available!", show_alert=True)
+                return
+                
+            # Check ownership
+            if emoji in db.get_user_emojis(user_id):
+                await query.answer("❌ You already own this emoji!", show_alert=True)
+                return
+                
+            # Check balance
+            if not db.has_sufficient_balance(user_id, item['price']):
+                await query.answer(f"❌ You need {item['price']} Hiwa to buy this!", show_alert=True)
+                return
+                
+            # Process purchase
+            db.deduct_balance(user_id, item['price'])
+            db.add_emoji(user_id, emoji)
+            
+            # Update message and notify
+            new_balance = db.get_balance(user_id)
+            await query.edit_message_text(
+                f"✅ Successfully purchased {emoji}!\n"
+                f"New balance: {new_balance} Hiwa",
+                reply_markup=None  # Remove inline keyboard
+            )
+            return  # IMPORTANT: Exit after handling purchase
+
+        # Handle game reveals SECOND
         if data.startswith("reveal_"):
             parts = data.split("_")
             i, j, target_user_id = int(parts[1]), int(parts[2]), int(parts[3])
-        elif data.startswith("cashout_"):
-            target_user_id = int(data.split("_")[1])
-        else:
-            return
+            
+            # Validate user
+            if caller_id != target_user_id:
+                await query.answer("❌ This isn't your game!", show_alert=True)
+                return
 
-        # Validate user
-        if caller_id != target_user_id:
-            await query.answer("❌ This isn't your game!", show_alert=True)
-            return
+            # Retrieve game
+            try:
+                game = user_games[chat_id][target_user_id]
+            except KeyError:
+                await query.edit_message_text("❌ Game session expired!")
+                return
 
-        # Retrieve game
-        try:
-            game = user_games[chat_id][target_user_id]
-        except KeyError:
-            await query.edit_message_text("❌ Game session expired!")
-            return
-
-        if data.startswith("reveal_"):
             success, status = game.reveal_tile(i, j)
             
             if not success:
@@ -303,38 +334,22 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     )
                 return
                 
-            # Pass user_id to send_game_board
             await send_game_board(update, game, target_user_id, i, j)
 
-        elif data.startswith("buy_"):
-            emoji = data.split("_")[1]
-            user_id = update.effective_user.id
-            item = next((i for i in db.get_emoji_store() if i['emoji'] == emoji), None)
+        # Handle cashout THIRD
+        elif data.startswith("cashout_"):
+            target_user_id = int(data.split("_")[1])
             
-            if not item:
-                await query.answer("❌ Emoji not available!")
+            if caller_id != target_user_id:
+                await query.answer("❌ This isn't your game!", show_alert=True)
                 return
-            
-            if emoji in db.get_user_emojis(user_id):
-                await query.answer("❌ You already own this emoji!")
-                return
-            
-            if not db.has_sufficient_balance(user_id, item['price']):
-                await query.answer("❌ Insufficient balance!")
-                return
-            
-            db.deduct_balance(user_id, item['price'])
-            db.add_emoji(user_id, emoji)
-            await query.answer(f"✅ Purchased {emoji} for {item['price']} Hiwa!")
-            await query.edit_message_text(f"🏪 Purchase Successful!\nNew balance: {db.get_balance(user_id)} Hiwa")
 
-        elif data == "reset_emoji":
-            user_id = update.effective_user.id
-            db.set_selected_emoji(user_id, '💎')
-            await query.answer("✅ Reset to default emoji!")
-            await collection(update, context)
+            try:
+                game = user_games[chat_id][target_user_id]
+            except KeyError:
+                await query.edit_message_text("❌ Game session expired!")
+                return
 
-        elif data.startswith("cashout"):
             if game.gems_revealed >= 2:
                 game.game_over = True
                 win_amount = int(game.bet_amount * game.current_multiplier)
@@ -346,9 +361,15 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             else:
                 await query.answer("Need 2+ gems to cash out!", show_alert=True)
 
+        # Handle emoji reset FOURTH
+        elif data == "reset_emoji":
+            db.set_selected_emoji(caller_id, '💎')
+            await query.answer("✅ Reset to default emoji!")
+            await collection(update, context)
+
     except Exception as e:
-        logger.error(f"Button handler error: {e}")
-        await query.answer("Error processing request")
+        logger.error(f"Button handler error: {e}", exc_info=True)
+        await query.answer("⚠️ Error processing request")
 
 async def handle_game_over(
     update: Update,
