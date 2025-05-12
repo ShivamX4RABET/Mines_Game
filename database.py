@@ -20,8 +20,8 @@ class UserDatabase:
         ]
     
     def get_emoji_store(self) -> list:
-    # Return the predefined emoji list
-    return self.emoji_store  # Changed from self.data.get("store", [])
+    # Returns list like [{"emoji": "⭐", "price": 500}, ...]
+    return self.emoji_store
 
     def get_user_emojis(self, user_id: int) -> list:
         # Returns list like ["🌟", "🌸"]
