@@ -641,26 +641,27 @@ async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    top = db.get_top_users(10)  # now returns (id, username, first_name, balance)
+    top = db.get_top_users(10)
     if not top:
-        return await update.message.reply_text("🏆 Leaderboard is empty!")
+        await update.message.reply_text("🏆 Leaderboard is empty!")
+        return
 
     lines = ["🏆 **TOP PLAYERS** 🏆\n"]
     medals = ["🥇", "🥈", "🥉"]
-
     for i, (uid, username, first_name, balance) in enumerate(top, start=1):
-        # pick medal emoji or numeric rank
         prefix = medals[i-1] if i <= 3 else f"{i}."
-        # if they have a Telegram @username, use it verbatim;
-        # otherwise mention them by name & ID so Telegram links it
-        # Always use first name with user ID link
-        mention = f"[{first_name}](tg://user?id={uid})"
-
-        lines.append(f"{prefix} {mention} — **{balance:,}** Hiwa")
+        mention = f"[{first_name}](tg://user?id={uid})" if first_name else f"User {uid}"
+        # Convert balance to integer before formatting
+        try:
+            formatted_balance = f"**{int(balance):,}**"
+        except (ValueError, TypeError):
+            formatted_balance = "0"
+        
+        lines.append(f"{prefix} {mention} — {formatted_balance} Hiwa")
 
     await update.message.reply_text(
         "\n".join(lines),
-        parse_mode='Markdown'
+        parse_mode=ParseMode.MARKDOWN
     )
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
