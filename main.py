@@ -648,15 +648,20 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     lines = ["🏆 **TOP PLAYERS** 🏆\n"]
     medals = ["🥇", "🥈", "🥉"]
+    
     for i, (uid, username, first_name, balance) in enumerate(top, start=1):
         prefix = medals[i-1] if i <= 3 else f"{i}."
-        mention = f"[{first_name}](tg://user?id={uid})" if first_name else f"User {uid}"
-        # Convert balance to integer before formatting
-        try:
-            formatted_balance = f"**{int(balance):,}**"
-        except (ValueError, TypeError):
-            formatted_balance = "0"
         
+        # Fallback to "User XYZ" if first_name is empty
+        display_name = first_name or f"User {uid}"
+        
+        # Use username mention if available, else fallback
+        if username:
+            mention = f"@{username}"
+        else:
+            mention = f"[{display_name}](tg://user?id={uid})"
+        
+        formatted_balance = f"**{balance:,}**"
         lines.append(f"{prefix} {mention} — {formatted_balance} Hiwa")
 
     await update.message.reply_text(
