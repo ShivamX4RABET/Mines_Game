@@ -402,9 +402,10 @@ async def handle_game_over(
 
     # 6. Edit original message
     try:
-        await query.edit_message_text(
+        await update.callback_query.edit_message_text(
             text=message,
             reply_markup=InlineKeyboardMarkup(keyboard)
+        )
     except Exception as e:
         logger.error(f"Game over error: {e}")
 
