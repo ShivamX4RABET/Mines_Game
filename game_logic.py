@@ -48,8 +48,9 @@ class MinesGame:
             self._recalculate_multiplier()
             return True, 'gem'
 
-    def _recalculate_multiplier(self):
-        self.current_multiplier = round(1.25 ** self.gems_revealed, 2)
+    def _recalculate_multiplier(self) -> None:
+        base_rate = 0.25 + (self.mines_count / 24) * 0.5
+        self.current_multiplier = 1.0 + (self.gems_revealed * base_rate)
 
     def _reveal_all_tiles(self):
         for row in self.board:
