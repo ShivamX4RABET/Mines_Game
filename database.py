@@ -11,6 +11,40 @@ class UserDatabase:
     def __init__(self, filename: str):
         self.filename = str(DATA_DIR / filename)
         self.data = self._load_data()
+        self.emoji_store = [
+            {'emoji': '⭐', 'price': 500},
+            {'emoji': '🎁', 'price': 1000},
+            {'emoji': '❤️', 'price': 750},
+            {'emoji': '🚀', 'price': 1500},
+            {'emoji': '👑', 'price': 2000}
+        ]
+    
+    def get_emoji_store(self):
+        return self.emoji_store
+    
+    def get_user_emojis(self, user_id):
+        return self.data.get(str(user_id), {}).get('emojis', [])
+    
+    def add_emoji(self, user_id, emoji):
+        user = self.data.get(str(user_id), {})
+        if 'emojis' not in user:
+            user['emojis'] = []
+        if emoji not in user['emojis']:
+            user['emojis'].append(emoji)
+            self.save_data()
+    
+    def remove_emoji(self, user_id, emoji):
+        user = self.data.get(str(user_id), {})
+        if emoji in user.get('emojis', []):
+            user['emojis'].remove(emoji)
+            self.save_data()
+    
+    def get_selected_emoji(self, user_id):
+        return self.data.get(str(user_id), {}).get('selected_emoji', '💎')
+    
+    def set_selected_emoji(self, user_id, emoji):
+        self.data.setdefault(str(user_id), {})['selected_emoji'] = emoji
+        self.save_data()
     
     def _load_data(self) -> Dict[str, Any]:
         """Load data from JSON file with groups support"""
