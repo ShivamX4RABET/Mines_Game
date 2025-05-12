@@ -28,24 +28,30 @@ class UserDatabase:
         return self.data["users"][str(user_id)].get("emojis", [])
 
     def add_emoji(self, user_id: int, emoji: str):
-        user = self.data.setdefault(str(user_id), {})
+        users = self.data["users"]
+        user = users.setdefault(str(user_id), {})
         user.setdefault("emojis", [])
         if emoji not in user["emojis"]:
             user["emojis"].append(emoji)
             self._save_data()
-     
+
     def remove_emoji(self, user_id, emoji):
-        user = self.data.get(str(user_id), {})
+        users = self.data["users"]
+        user = users.get(str(user_id), {})
         if emoji in user.get('emojis', []):
             user['emojis'].remove(emoji)
-            self.save_data()
-    
+            self._save_data()  # Fixed method name
+
     def get_selected_emoji(self, user_id):
-        return self.data.get(str(user_id), {}).get('selected_emoji', '💎')
-    
+        users = self.data["users"]
+        user = users.get(str(user_id), {})
+        return user.get('selected_emoji', '💎')
+
     def set_selected_emoji(self, user_id, emoji):
-        self.data.setdefault(str(user_id), {})['selected_emoji'] = emoji
-        self.save_data()
+        users = self.data["users"]
+        user = users.setdefault(str(user_id), {})
+        user['selected_emoji'] = emoji
+        self._save_data()  # Fixed method name
     
     def _load_data(self) -> Dict[str, Any]:
         """Load data from JSON file with groups support"""
