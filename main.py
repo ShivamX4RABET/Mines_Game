@@ -419,28 +419,37 @@ async def handle_game_over(
     except KeyError:
         pass
 
-# Store command
+# ---- store command ----
 async def store(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show the emoji store with Buy buttons."""
     store_items = db.get_emoji_store()
+    logger.info("Store items: %r", store_items)  # make sure this isn't empty!
+
+    if not store_items:
+        await update.message.reply_text("🏪 The store is currently empty. Check back later!")
+        return
+
     text = "🏪 *Emoji Store* 💎\n\n"
-    
     for idx, item in enumerate(store_items, 1):
         text += (
-            f"{idx}. {item['emoji']} - *{item['description']}*\n"
+            f"{idx}. {item['emoji']} — *{item['description']}*\n"
             f"   Price: {item['price']} Hiwa\n\n"
         )
-    
+
     keyboard = [
-        [InlineKeyboardButton(
-            f"{item['emoji']} Buy {item['price']} Hiwa", 
-            callback_data=f"buy_{item['emoji']}"
-        )] for item in store_items
+        [
+            InlineKeyboardButton(
+                f"Buy {item['emoji']} ({item['price']} Hiwa)",
+                callback_data=f"buy_{item['emoji']}"
+            )
+        ]
+        for item in store_items
     ]
-    
+
     await update.message.reply_text(
         text,
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=InlineKeyboardMarkup(keyboard),
         )
 
 # Collection command
@@ -462,38 +471,34 @@ async def collection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         reply_markup=InlineKeyboardMarkup(keyboard) if keyboard else None
     )
 
-# Gift command
-async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle emoji gifting"""
+# ---- emoji gifting (/give) ----
+async def emoji_gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reply to a message to gift an emoji you own."""
     user = update.effective_user
     reply = update.message.reply_to_message
-    
+
     if not reply or not reply.from_user:
-        await update.message.reply_text("❌ Reply to a user's message to gift an emoji!")
-        return
-    
-    target_user = reply.from_user
-    if target_user.id == user.id:
-        await update.message.reply_text("❌ You can't gift yourself!")
-        return
-    
+        return await update.message.reply_text("❌ Reply to someone’s message to gift an emoji!")
+
+    target = reply.from_user
+    if target.id == user.id:
+        return await update.message.reply_text("❌ You can’t gift yourself!")
+
     try:
         emoji = context.args[0]
     except IndexError:
-        await update.message.reply_text("Usage: /gift [emoji] (reply to user's message)")
-        return
-    
+        return await update.message.reply_text("Usage: /give [emoji] (in reply to a user)")
+
     if emoji not in db.get_user_emojis(user.id):
-        await update.message.reply_text("❌ You don't own this emoji!")
-        return
-    
+        return await update.message.reply_text("❌ You don’t own that emoji!")
+
     db.remove_emoji(user.id, emoji)
-    db.add_emoji(target_user.id, emoji)
-    
-    await update.message.reply_text(f"✅ Successfully gifted {emoji} to {target_user.first_name}!")
+    db.add_emoji(target.id, emoji)
+
+    await update.message.reply_text(f"✅ You gifted {emoji} to {target.first_name}!")
     await context.bot.send_message(
-        target_user.id,
-        f"🎁 You received {emoji} from {user.first_name}!"
+        chat_id=target.id,
+        text=f"🎁 You received {emoji} from {user.first_name}!"
     )
 
 async def cashout_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -752,10 +757,10 @@ def main() -> None:
     application.add_handler(CommandHandler("daily", daily_bonus))
     application.add_handler(CommandHandler("weekly", weekly_bonus))
     application.add_handler(CommandHandler("leaderboard", leaderboard))
-    application.add_handler(CommandHandler("gift", gift))
     application.add_handler(CommandHandler("store", store))
     application.add_handler(CommandHandler("collection", collection))
-    application.add_handler(CommandHandler("give", gift))
+    application.add_handler(CommandHandler("give", emoji_gift))
+    application.add_handler(CommandHandler("gift", gift))
     
     # Admin commands
     application.add_handler(CommandHandler("broadcast", admin_broadcast))
