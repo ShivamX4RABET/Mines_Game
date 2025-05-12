@@ -12,42 +12,12 @@ class UserDatabase:
         self.filename = str(DATA_DIR / filename)
         self.data = self._load_data()
         self.emoji_store = [
-            {
-                'emoji': '⭐',  # The emoji character
-                'price': 5000000,   # Cost in Hiwa
-                'description': 'Shooting Star'
-            },
-            {
-                'emoji': '🎁',
-                'price': 100000000,
-                'description': 'Gift Box'
-            },
-            {
-                'emoji': '❤️',
-                'price': 75000000000,
-                'description': 'Heart Love'
-            },
-            {
-                'emoji': '🚀',
-                'price': 150000000,
-                'description': 'Rocket Ship'
-            },
-            {
-                'emoji': '👑',
-                'price': 5000000000000000000,
-                'description': 'Golden Crown'
-            },
-            {
-                'emoji': '🌈',
-                'price': 120000,
-                'description': 'Rainbow'
-            },
-            {
-                'emoji': '🎉',
-                'price': 800000,
-                'description': 'Party Popper'
-            }
-                ]
+            {'emoji': '⭐', 'price': 500},
+            {'emoji': '🎁', 'price': 1000},
+            {'emoji': '❤️', 'price': 750},
+            {'emoji': '🚀', 'price': 1500},
+            {'emoji': '👑', 'price': 2000}
+        ]
     
     def get_emoji_store(self) -> list:
         # Returns list like [{"emoji": "🌟", "description": "Star", "price": 50}, ...]
