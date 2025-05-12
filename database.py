@@ -150,24 +150,20 @@ class UserDatabase:
         self._save_data()
     
     def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, str, int]]:
-    """
-    Returns a list of (user_id, username, first_name, balance)
-    sorted by balance descending, limited to `limit`.
-    """
-    users = []
-    for uid, data in self.data["users"].items():
-        # Ensure username is None if empty string
-        username = data.get("username") or None  
-        # Telegram requires first_name, but handle missing case
-        first_name = data.get("first_name", f"User {uid}")  
-        
-        users.append((
-            int(uid),
-            username,
-            first_name,  # Guaranteed to have value
-            data["balance"]
-        ))
-    return sorted(users, key=lambda x: -x[3])[:limit]
+        """
+        Returns a list of (user_id, username, first_name, balance)
+        sorted by balance descending, limited to `limit`.
+        """
+        users = [
+            (
+                int(uid),
+                data.get("username", ""),
+                data.get("first_name", ""),
+                data["balance"]
+            )
+            for uid, data in self.data["users"].items()
+        ]
+        return sorted(users, key=lambda x: -x[3])[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
