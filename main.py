@@ -266,44 +266,61 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    # Parse callback data
     data = query.data.split('_')
-    
-    if data[0] == 'reveal':
+    chat_id = query.message.chat_id
+
+    if data[0] == 'cashout':
+        user_id = int(data[1])
+        game = user_games.get(chat_id, {}).get(user_id)
+        
+        if not game:
+            await query.edit_message_text("❌ Game session expired!")
+            return
+
+        # Calculate winnings and update balance
+        win_amount = int(game.bet_amount * game.current_multiplier)
+        db.add_balance(user_id, win_amount)
+
+        # End game with win status
+        await handle_game_over(
+            update=update,
+            chat_id=chat_id,
+            user_id=user_id,
+            game=game,
+            won=True,
+            context=context
+        )
+
+    elif data[0] == 'reveal':
         row = int(data[1])
         col = int(data[2])
         user_id = int(data[3])
-        chat_id = query.message.chat_id
-        
-        # Get game instance
+
         game = user_games.get(chat_id, {}).get(user_id)
         if not game:
             await query.edit_message_text("❌ Game session expired!")
             return
 
-        # Reveal the tile
+        # Reveal the selected tile
         success, result = game.reveal_tile(row, col)
-        
+
         if success:
-            # Update JUST THE CLICKED TILE
+            # Build updated keyboard with only the clicked tile changed
             keyboard = query.message.reply_markup.inline_keyboard
             new_keyboard = []
-            
-            # Rebuild keyboard with updated tile
+
             for i, kb_row in enumerate(keyboard[:-1]):  # Skip cashout row
                 new_row = []
                 for j, button in enumerate(kb_row):
                     if i == row and j == col:
-                        # Reveal clicked tile
                         new_row.append(InlineKeyboardButton(
                             game.player_emoji,
                             callback_data=f"reveal_{i}_{j}_{user_id}"
                         ))
                     else:
-                        # Keep existing buttons
                         new_row.append(button)
                 new_keyboard.append(new_row)
-            
+
             # Update cashout button with new multiplier
             new_keyboard.append([
                 InlineKeyboardButton(
@@ -311,16 +328,16 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     callback_data=f"cashout_{user_id}"
                 )
             ])
-            
-            # Edit the message
+
+            # Update the message
             await query.edit_message_text(
                 text=f"💎 {query.message.text.split('💎')[0]}💎\n"
                      f"Multiplier: {game.current_multiplier}x",
                 reply_markup=InlineKeyboardMarkup(new_keyboard)
             )
-            
+
         elif result == 'bomb':
-            # Handle mine explosion
+            # Tile was a bomb — game over
             await handle_game_over(
                 update=update,
                 chat_id=chat_id,
@@ -334,8 +351,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_game_over(
     update: Update,
-    chat_id: int,           # Group chat ID where game exists
-    user_id: int,           # User ID of game owner
+    chat_id: int,
+    user_id: int,
     game: MinesGame,
     won: bool,
     exploded_row: int = -1,
@@ -347,12 +364,12 @@ async def handle_game_over(
     if not won and 0 <= exploded_row < 5 and 0 <= exploded_col < 5:
         game.board[exploded_row][exploded_col].value = "💥"
 
-    # 2. Reveal all tiles using player's selected emoji
+    # 2. Reveal all tiles with player's emoji
     for row in game.board:
         for tile in row:
             tile.revealed = True
             if tile.value not in ["💣", "💥"]:
-                tile.value = game.player_emoji  # Use player's selected emoji
+                tile.value = game.player_emoji
 
     # 3. Build final keyboard
     keyboard = []
@@ -362,9 +379,10 @@ async def handle_game_over(
             tile = game.board[i][j]
             row.append(InlineKeyboardButton(tile.value, callback_data="ignore"))
         keyboard.append(row)
-
-    # 4. Add play again button
-    keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data=f"newgame_{user_id}")])
+    
+    # 4. Add play again button only if won
+    if won:
+        keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data=f"newgame_{user_id}")])
 
     # 5. Prepare result message
     balance = db.get_balance(user_id)
@@ -382,14 +400,13 @@ async def handle_game_over(
             f"New Balance: {balance} Hiwa"
         )
 
-    # 6. Edit original message in group chat
+    # 6. Edit original message
     try:
-        await update.callback_query.edit_message_text(
+        await query.edit_message_text(
             text=message,
             reply_markup=InlineKeyboardMarkup(keyboard)
-        )
     except Exception as e:
-        logger.error(f"Game over message error: {e}")
+        logger.error(f"Game over error: {e}")
 
     # 7. Cleanup game state
     try:
