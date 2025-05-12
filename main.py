@@ -149,9 +149,6 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     chat_id = update.effective_chat.id
     user_id = user.id
 
-    # Get user's selected emoji from database
-    selected_emoji = db.get_selected_emoji(user_id)  # Add this line
-
     # Check existing game in this chat
     if chat_id in user_games and user_id in user_games[chat_id]:
         await update.message.reply_text(
@@ -165,7 +162,7 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             return
 
         amount = int(context.args[0])
-        mines  = int(context.args[1])
+        mines = int(context.args[1])
 
         if amount < 1 or mines < 3 or mines > 24:
             await update.message.reply_text("Invalid input!\nAmount ≥1 | Mines 3–24")
@@ -175,8 +172,12 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             await update.message.reply_text("Insufficient balance!")
             return
 
+        # Get user's selected emoji from database
+        selected_emoji = db.get_selected_emoji(user_id)
+
+        # Deduct balance and initialize game
         db.deduct_balance(user_id, amount)
-        game = MinesGame(amount, mines, selected_emoji)  # Add selected_emoji here
+        game = MinesGame(amount, mines, selected_emoji)
 
         # Store game under chat_id and user_id
         if chat_id not in user_games:
@@ -324,8 +325,8 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 async def handle_game_over(
     update: Update,
-    chat_id: int,  # NEW: Group chat ID where game exists
-    user_id: int,   # NEW: User ID of game owner
+    chat_id: int,           # Group chat ID where game exists
+    user_id: int,           # User ID of game owner
     game: MinesGame,
     won: bool,
     exploded_row: int = -1,
@@ -337,12 +338,12 @@ async def handle_game_over(
     if not won and 0 <= exploded_row < 5 and 0 <= exploded_col < 5:
         game.board[exploded_row][exploded_col].value = "💥"
 
-    # 2. Reveal all tiles
+    # 2. Reveal all tiles using player's selected emoji
     for row in game.board:
         for tile in row:
             tile.revealed = True
             if tile.value not in ["💣", "💥"]:
-                tile.value = "💎"
+                tile.value = game.player_emoji  # Use player's selected emoji
 
     # 3. Build final keyboard
     keyboard = []
@@ -352,7 +353,7 @@ async def handle_game_over(
             tile = game.board[i][j]
             row.append(InlineKeyboardButton(tile.value, callback_data="ignore"))
         keyboard.append(row)
-    
+
     # 4. Add play again button
     keyboard.append([InlineKeyboardButton("🎮 Play Again", callback_data=f"newgame_{user_id}")])
 
@@ -381,11 +382,9 @@ async def handle_game_over(
     except Exception as e:
         logger.error(f"Game over message error: {e}")
 
-    # 7. Cleanup game state - CRITICAL NEW PART
+    # 7. Cleanup game state
     try:
-        # Remove from nested storage
         del user_games[chat_id][user_id]
-        # Cleanup empty chat entry
         if not user_games[chat_id]:
             del user_games[chat_id]
     except KeyError:
