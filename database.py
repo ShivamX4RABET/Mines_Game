@@ -28,12 +28,12 @@ class UserDatabase:
         return self.data["users"][str(user_id)].get("emojis", [])
 
     def add_emoji(self, user_id: int, emoji: str):
-    user = self.data.setdefault(str(user_id), {})
-    user.setdefault("emojis", [])
-    if emoji not in user["emojis"]:
-        user["emojis"].append(emoji)
-        self._save_data()  # Don't forget to save!
-    
+        user = self.data.setdefault(str(user_id), {})
+        user.setdefault("emojis", [])
+        if emoji not in user["emojis"]:
+            user["emojis"].append(emoji)
+            self._save_data()
+     
     def remove_emoji(self, user_id, emoji):
         user = self.data.get(str(user_id), {})
         if emoji in user.get('emojis', []):
