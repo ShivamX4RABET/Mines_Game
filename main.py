@@ -229,7 +229,7 @@ async def send_initial_board(
     
     game.message_id = message.message_id
 
-async def update_board(update: Update, game: MinesGame):
+async def update_board(update: Update, game: MinesGame, user_id: int):
     """Refresh game board with revealed tiles"""
     keyboard = []
     for i in range(5):
@@ -237,21 +237,26 @@ async def update_board(update: Update, game: MinesGame):
         for j in range(5):
             tile = game.board[i][j]
             text = tile.value if tile.revealed else "🟦"
-            row.append(InlineKeyboardButton(text, callback_data=f"reveal_{i}_{j}"))
+            row.append(InlineKeyboardButton(
+                text,
+                callback_data=f"reveal_{i}_{j}_{user_id}"
+            ))
         keyboard.append(row)
     
     if game.gems_revealed >= 2 and not game.game_over:
-        keyboard.append([InlineKeyboardButton(
-            f"💰 Cash Out ({game.multiplier:.2f}x)", 
-            callback_data="cashout"
-        )])
+        keyboard.append([
+            InlineKeyboardButton(
+                f"💰 Cash Out ({game.current_multiplier:.2f}x)", 
+                callback_data=f"cashout_{user_id}"
+            )
+        ])
     
     text = (
         f"💎 Mines Game 💣\n"
         f"Bet: {game.bet_amount} Hiwa\n"
         f"Mines: {game.mines_count}\n"
         f"Gems Found: {game.gems_revealed}\n"
-        f"Multiplier: {game.multiplier:.2f}x"
+        f"Multiplier: {game.current_multiplier:.2f}x"
     )
     
     try:
@@ -265,23 +270,23 @@ async def update_board(update: Update, game: MinesGame):
 async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
-    data = query.data.split('_')
-    chat_id = query.message.chat_id
 
+    data = query.data.split('_')
+    chat_id = query.message.chat.id  # note: .chat.id instead of .chat_id in newer PTB
+
+    # CASH OUT flow
     if data[0] == 'cashout':
         user_id = int(data[1])
         game = user_games.get(chat_id, {}).get(user_id)
-        
         if not game:
             await query.edit_message_text("❌ Game session expired!")
             return
 
-        # Calculate winnings and update balance
+        # Calculate and award winnings
         win_amount = int(game.bet_amount * game.current_multiplier)
         db.add_balance(user_id, win_amount)
 
-        # End game with win status
+        # Finish the game
         await handle_game_over(
             update=update,
             chat_id=chat_id,
@@ -290,8 +295,10 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             won=True,
             context=context
         )
+        return
 
-    elif data[0] == 'reveal':
+    # REVEAL TILE flow
+    if data[0] == 'reveal':
         row = int(data[1])
         col = int(data[2])
         user_id = int(data[3])
@@ -301,43 +308,50 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ Game session expired!")
             return
 
-        # Reveal the selected tile
         success, result = game.reveal_tile(row, col)
 
         if success:
-            # Build updated keyboard with only the clicked tile changed
-            keyboard = query.message.reply_markup.inline_keyboard
-            new_keyboard = []
-
-            for i, kb_row in enumerate(keyboard[:-1]):  # Skip cashout row
-                new_row = []
-                for j, button in enumerate(kb_row):
-                    if i == row and j == col:
-                        new_row.append(InlineKeyboardButton(
-                            game.player_emoji,
+            # Rebuild entire keyboard from game state
+            keyboard = []
+            for i in range(5):
+                kb_row = []
+                for j in range(5):
+                    tile = game.board[i][j]
+                    text = tile.value if tile.revealed else "🟦"
+                    kb_row.append(
+                        InlineKeyboardButton(
+                            text,
                             callback_data=f"reveal_{i}_{j}_{user_id}"
-                        ))
-                    else:
-                        new_row.append(button)
-                new_keyboard.append(new_row)
+                        )
+                    )
+                keyboard.append(kb_row)
 
-            # Update cashout button with new multiplier
-            new_keyboard.append([
-                InlineKeyboardButton(
-                    f"💰 Cash Out ({game.current_multiplier}x)",
-                    callback_data=f"cashout_{user_id}"
-                )
-            ])
+            # Add cash-out button once at least 2 gems are found
+            if game.gems_revealed >= 2 and not game.game_over:
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"💰 Cash Out ({game.current_multiplier:.2f}x)",
+                        callback_data=f"cashout_{user_id}"
+                    )
+                ])
 
-            # Update the message
-            await query.edit_message_text(
-                text=f"💎 {query.message.text.split('💎')[0]}💎\n"
-                     f"Multiplier: {game.current_multiplier}x",
-                reply_markup=InlineKeyboardMarkup(new_keyboard)
+            # Update message text
+            new_text = (
+                f"💎 Mines Game 💣\n"
+                f"Bet: {game.bet_amount} Hiwa\n"
+                f"Mines: {game.mines_count}\n"
+                f"Gems Found: {game.gems_revealed}\n"
+                f"Multiplier: {game.current_multiplier:.2f}x"
             )
 
-        elif result == 'bomb':
-            # Tile was a bomb — game over
+            await query.edit_message_text(
+                text=new_text,
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            return
+
+        # BOMB hit → game over
+        if result == 'bomb':
             await handle_game_over(
                 update=update,
                 chat_id=chat_id,
@@ -348,6 +362,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 exploded_col=col,
                 context=context
             )
+            return
 
 async def handle_game_over(
     update: Update,
