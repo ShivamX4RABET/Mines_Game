@@ -641,23 +641,41 @@ async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    top = db.get_top_users(10)
-    if not top:
-        return await update.message.reply_text("🏆 Leaderboard is empty!")
+    # 1) Log that we got here
+    logger.info("Received /leaderboard from user %s in chat %s",
+                update.effective_user.id,
+                update.effective_chat.id)
 
-    lines = ['🏆 <b>TOP PLAYERS</b> 🏆', '']
-    medals = ["🥇", "🥈", "🥉"]
+    try:
+        top = db.get_top_users(10)
+        if not top:
+            await update.effective_message.reply_text("🏆 Leaderboard is empty!")
+            return
 
-    for i, (uid, username, first_name, balance) in enumerate(top, start=1):
-        prefix = medals[i-1] if i <= 3 else f"{i}."
-        mention = f'<a href="tg://user?id={uid}">{first_name}</a>'
-        lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
+        lines = ['🏆 <b>TOP PLAYERS</b> 🏆', '']
+        medals = ["🥇", "🥈", "🥉"]
 
-    await update.message.reply_text(
-        "\n".join(lines),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True
-    )
+        for i, (uid, username, first_name, balance) in enumerate(top, start=1):
+            prefix = medals[i-1] if i <= 3 else f"{i}."
+            mention = f'<a href="tg://user?id={uid}">{first_name}</a>'
+            lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
+
+        text = "\n".join(lines)
+        logger.debug("Sending leaderboard text:\n%s", text)
+
+        await update.effective_message.reply_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True,
+        )
+
+    except Exception as err:
+        # 2) Catch and log any exception so you can see it in your logs
+        logger.exception("Error while sending leaderboard: %s", err)
+        # Let the user know something went wrong
+        await update.effective_message.reply_text(
+            "⚠️ Sorry, I ran into an error trying to show the leaderboard."
+        )
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
