@@ -662,14 +662,6 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         "\n".join(lines),
         parse_mode='Markdown'
         )
-    
-    except Exception as err:
-        # 2) Catch and log any exception so you can see it in your logs
-        logger.exception("Error while sending leaderboard: %s", err)
-        # Let the user know something went wrong
-        await update.effective_message.reply_text(
-            "⚠️ Sorry, I ran into an error trying to show the leaderboard."
-        )
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
