@@ -642,24 +642,29 @@ async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    top = db.get_top_users(10)
-    if not top:
-        return await update.message.reply_text("🏆 Leaderboard is empty!")
+    try:
+        top = db.get_top_users(10)
+        if not top:
+            await update.message.reply_text("🏆 Leaderboard is empty!")
+            return
 
-    lines = ["🏆 <b>TOP PLAYERS</b> 🏆\n"]
-    medals = ["🥇", "🥈", "🥉"]
+        lines = ["🏆 <b>TOP PLAYERS</b> 🏆\n"]
+        medals = ["🥇", "🥈", "🥉"]
 
-    for i, (uid, username, first_name, balance) in enumerate(top, start=1):
-        prefix = medals[i - 1] if i <= 3 else f"{i}."
-        safe_name = html.escape(first_name)
-        mention = f'<a href="tg://user?id={uid}">{safe_name}</a>'
-        lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
+        for i, (uid, username, first_name, balance) in enumerate(top, start=1):
+            prefix = medals[i - 1] if i <= 3 else f"{i}."
+            safe_name = html.escape(first_name or "Unknown")  # Extra safety
+            mention = f'<a href="tg://user?id={uid}">{safe_name}</a>'
+            lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
 
-    await update.message.reply_text(
-        "\n".join(lines),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True
-    )
+        await update.message.reply_text(
+            "\n".join(lines),
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
+        )
+    except Exception as e:
+        logger.error(f"Leaderboard error: {e}")
+        await update.message.reply_text("❌ Failed to load leaderboard. Please try again!")
 
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
