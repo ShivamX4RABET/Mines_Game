@@ -1,5 +1,6 @@
 import logging
 from telegram.constants import ParseMode
+import html
 from telegram import MessageEntity, User
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
@@ -645,20 +646,18 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if not top:
         return await update.message.reply_text("🏆 Leaderboard is empty!")
 
-    lines = [
-        "🏆 *TOP PLAYERS* 🏆\n"
-    ]
+    lines = ["🏆 <b>TOP PLAYERS</b> 🏆\n"]
     medals = ["🥇", "🥈", "🥉"]
 
     for i, (uid, username, first_name, balance) in enumerate(top, start=1):
-        prefix = medals[i-1] if i <= 3 else f"{i}."
-        # Escape any underscores or brackets in first_name if necessary
-        mention = f"[{first_name}](tg://user?id={uid})"
-        lines.append(f"{prefix} {mention} — *{balance:,}* Hiwa")
+        prefix = medals[i - 1] if i <= 3 else f"{i}."
+        safe_name = html.escape(first_name)
+        mention = f'<a href="tg://user?id={uid}">{safe_name}</a>'
+        lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
 
     await update.message.reply_text(
         "\n".join(lines),
-        parse_mode='Markdown',
+        parse_mode=ParseMode.HTML,
         disable_web_page_preview=True
     )
 
