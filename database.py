@@ -178,21 +178,21 @@ class UserDatabase:
         self._save_data()
     
     def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, str, int]]:
-    """
-    Returns a list of (user_id, username, first_name, balance)
-    sorted by balance descending, limited to `limit`.
-    """
-    users = [
-        (
-            int(uid),
-            data.get("username", ""),
-            data.get("first_name", "Unknown"),  # Default for legacy users
-            data["balance"]
-        )
-        for uid, data in self.data["users"].items()
-    ]
-    # Fixed sorting using reverse=True instead of negative index
-    return sorted(users, key=lambda x: x[3], reverse=True)[:limit]
+        """
+        Returns a list of (user_id, username, first_name, balance)
+        sorted by balance descending, limited to `limit`.
+        """
+        users = [
+            (
+                int(uid),
+                data.get("username", ""),
+                data.get("first_name", "Unknown"),  # Default for legacy users
+                data["balance"]
+            )
+            for uid, data in self.data["users"].items()
+        ]
+        # Fixed sorting using reverse=True instead of negative index
+        return sorted(users, key=lambda x: x[3], reverse=True)[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
