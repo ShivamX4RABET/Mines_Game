@@ -641,34 +641,31 @@ async def weekly_bonus(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # 1) Log that we got here
-    logger.info("Received /leaderboard from user %s in chat %s",
-                update.effective_user.id,
-                update.effective_chat.id)
-
     try:
         top = db.get_top_users(10)
         if not top:
-            await update.effective_message.reply_text("🏆 Leaderboard is empty!")
-            return
+            return await update.message.reply_text("🏆 Leaderboard is empty!")
 
-        lines = ['🏆 <b>TOP PLAYERS</b> 🏆', '']
+        lines = ["🏆 TOP PLAYERS 🏆", ""]
         medals = ["🥇", "🥈", "🥉"]
 
         for i, (uid, username, first_name, balance) in enumerate(top, start=1):
             prefix = medals[i-1] if i <= 3 else f"{i}."
-            mention = f'<a href="tg://user?id={uid}">{first_name}</a>'
-            lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
+            # Just show the first name––no links, no HTML, no Markdown
+            lines.append(f"{prefix} {first_name} — {balance:,} Hiwa")
 
         text = "\n".join(lines)
-        logger.debug("Sending leaderboard text:\n%s", text)
+        logger.debug("Leaderboard text:\n%s", text)
 
-        await update.effective_message.reply_text(
-            text,
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True,
+        await update.message.reply_text(text)
+
+    except Exception:
+        logger.exception("Failed to send leaderboard")
+        # If something really unexpected happens, you’ll still see this:
+        await update.message.reply_text(
+            "⚠️ Sorry, something went wrong while fetching the leaderboard."
         )
-
+    
     except Exception as err:
         # 2) Catch and log any exception so you can see it in your logs
         logger.exception("Error while sending leaderboard: %s", err)
@@ -680,7 +677,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
     if len(context.args) < 2:
-        await update.message.reply_text("Usage: /gift @username <amount>")
+        await update.message.reply_text("sage: /gift @username <amount>")
         return
     
     try:
