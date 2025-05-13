@@ -54,16 +54,44 @@ class UserDatabase:
         self._save_data()  # Fixed method name
     
     def _load_data(self) -> Dict[str, Any]:
-        """Load data from JSON file with groups support"""
+        """Load data from JSON file with backward compatibility fixes"""
+        # Load or initialize base data
         if not os.path.exists(self.filename):
-            return {"users": {}, "groups": []}  # Added groups array
-        
+            return {"users": {}, "groups": []}
+
         with open(self.filename, 'r') as f:
             data = json.load(f)
-            # Backward compatibility: add groups if missing
-            if "groups" not in data:
-                data["groups"] = []
-            return data
+
+        # Backward compatibility fixes
+        # 1. Add groups array if missing
+        if "groups" not in data:
+            data["groups"] = []
+    
+        # 2. Ensure users exists
+        if "users" not in data:
+            data["users"] = {}
+    
+        # 3. Add missing fields to existing users
+        for user_id, user_data in data["users"].items():
+            # Add first_name if missing (legacy users)
+            if "first_name" not in user_data:
+                user_data["first_name"] = "Unknown"
+        
+        # Add emojis array if missing
+            if "emojis" not in user_data:
+                user_data["emojis"] = []
+        
+        # Add selected_emoji if missing
+            if "selected_emoji" not in user_data:
+                user_data["selected_emoji"] = "💎"
+        
+        # Add bonus timestamps if missing
+            if "last_daily" not in user_data:
+                user_data["last_daily"] = None
+            if "last_weekly" not in user_data:
+                user_data["last_weekly"] = None
+
+        return data
 
     def add_group(self, group_id: int) -> None:
         """Add a group to the database if not already present"""
