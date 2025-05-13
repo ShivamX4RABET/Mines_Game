@@ -149,21 +149,19 @@ class UserDatabase:
         self.data["users"][str(user_id)]["last_weekly"] = time.isoformat()
         self._save_data()
     
+    # In UserDatabase class
     def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, str, int]]:
-        """
-        Returns a list of (user_id, username, first_name, balance)
-        sorted by balance descending, limited to `limit`.
-        """
-        users = [
-            (
+        users = []
+        for uid, data in self.data["users"].items():
+            # Handle legacy users without first_name
+            first_name = data.get("first_name", "Unknown")
+            users.append((
                 int(uid),
                 data.get("username", ""),
-                data.get("first_name", ""),
+                first_name,  # Now safe
                 data["balance"]
-            )
-            for uid, data in self.data["users"].items()
-        ]
-        return sorted(users, key=lambda x: -x[3])[:limit]
+            ))
+    return sorted(users, key=lambda x: -x[3])[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
