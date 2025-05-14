@@ -273,11 +273,18 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     data = query.data.split('_')
-    chat_id = query.message.chat.id  # note: .chat.id instead of .chat_id in newer PTB
+    chat_id = query.message.chat.id  # group chat ID
+    user_clicking_id = query.from_user.id  # the user who clicked
 
     # CASH OUT flow
     if data[0] == 'cashout':
         user_id = int(data[1])
+
+        # Restrict access to board owner
+        if user_clicking_id != user_id:
+            await query.answer("You can't cash out another player's game!", show_alert=True)
+            return
+
         game = user_games.get(chat_id, {}).get(user_id)
         if not game:
             await query.edit_message_text("❌ Game session expired!")
@@ -304,6 +311,11 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
         col = int(data[2])
         user_id = int(data[3])
 
+        # Restrict access to board owner
+        if user_clicking_id != user_id:
+            await query.answer("You can't play someone else's board!", show_alert=True)
+            return
+
         game = user_games.get(chat_id, {}).get(user_id)
         if not game:
             await query.edit_message_text("❌ Game session expired!")
@@ -327,7 +339,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                 keyboard.append(kb_row)
 
-            # Add cash-out button once at least 2 gems are found
+            # Add cash-out button if at least 2 gems revealed
             if game.gems_revealed >= 2 and not game.game_over:
                 keyboard.append([
                     InlineKeyboardButton(
@@ -336,7 +348,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     )
                 ])
 
-            # Update message text
+            # Update message
             new_text = (
                 f"💎 Mines Game 💣\n"
                 f"Bet: {game.bet_amount} Hiwa\n"
@@ -351,7 +363,7 @@ async def button_click(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-        # BOMB hit → game over
+        # Bomb was revealed — game over
         if result == 'bomb':
             await handle_game_over(
                 update=update,
