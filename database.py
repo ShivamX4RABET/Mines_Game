@@ -55,11 +55,19 @@ class UserDatabase:
 
     def _load_data(self) -> Dict[str, Any]:
         """Load user data from JSON file."""
+        # If the file doesn’t exist yet, initialize both users and groups
         if not os.path.exists(self.filename):
-            return {"users": {}}
-        
+            return {"users": {}, "groups": []}
+
+        # Otherwise open and parse it
         with open(self.filename, 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+
+        # Ensure legacy files get a groups key
+        if "groups" not in data:
+            data["groups"] = []
+
+        return data
     
     def add_group(self, group_id: int) -> None:
         """Add a group to the database if not already present"""
@@ -146,21 +154,19 @@ class UserDatabase:
         self._save_data()
     
     def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, str, int]]:
-        """
-        Returns a list of (user_id, username, first_name, balance)
-        sorted by balance descending, limited to `limit`.
-        """
-        users = [
-            (
+    users = []
+    for uid, data in self.data["users"].items():
+        try:
+            balance = int(data.get("balance", 0))
+            users.append((
                 int(uid),
                 data.get("username", ""),
-                data.get("first_name", "Unknown"),  # Default for legacy users
-                data["balance"]
-            )
-            for uid, data in self.data["users"].items()
-        ]
-        # Fixed sorting using reverse=True instead of negative index
-        return sorted(users, key=lambda x: x[3], reverse=True)[:limit]
+                data.get("first_name", "Unknown"),
+                balance
+            ))
+        except Exception as e:
+            logger.warning(f"Skipping user {uid} due to data error: {e}")
+    return sorted(users, key=lambda x: x[3], reverse=True)[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
