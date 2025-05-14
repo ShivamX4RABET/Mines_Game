@@ -156,17 +156,17 @@ class UserDatabase:
     def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, str, int]]:
         users = []
         for uid, data in self.data["users"].items():
-        try:
-            balance = int(data.get("balance", 0))
-            users.append((
-                int(uid),
-                data.get("username", ""),
-                data.get("first_name", "Unknown"),
-                balance
-            ))
+            try:
+                balance = int(data.get("balance", 0))
+                users.append((
+                    int(uid),
+                    data.get("username", ""),
+                    data.get("first_name", "Unknown"),
+                    balance
+                ))
         except Exception as e:
             logger.warning(f"Skipping user {uid} due to data error: {e}")
-    return sorted(users, key=lambda x: x[3], reverse=True)[:limit]
+        return sorted(users, key=lambda x: x[3], reverse=True)[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
         """Get user ID by username."""
