@@ -164,8 +164,8 @@ class UserDatabase:
                     data.get("first_name", "Unknown"),
                     balance
                 ))
-        except Exception as e:
-            logger.warning(f"Skipping user {uid} due to data error: {e}")
+            except Exception as e:
+                logger.warning(f"Skipping user {uid} due to data error: {e}")
         return sorted(users, key=lambda x: x[3], reverse=True)[:limit]
     
     def get_user_id_by_username(self, username: str) -> Optional[int]:
