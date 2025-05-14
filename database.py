@@ -154,8 +154,8 @@ class UserDatabase:
         self._save_data()
     
     def get_top_users(self, limit: int = 10) -> List[Tuple[int, str, str, int]]:
-    users = []
-    for uid, data in self.data["users"].items():
+        users = []
+        for uid, data in self.data["users"].items():
         try:
             balance = int(data.get("balance", 0))
             users.append((
