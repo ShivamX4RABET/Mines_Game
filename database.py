@@ -16,6 +16,9 @@ class UserDatabase:
             {'emoji': '🎁', 'price': 500000, 'description': 'Gift Box'},
             {'emoji': '❤️', 'price': 1000000, 'description': 'Heart of Love'},
             {'emoji': '🚀', 'price': 15000000, 'description': 'Rocket Booster'},
+            {'emoji': '👻', 'price': 50000000, 'description': 'Ghost'},
+            {'emoji': '💀', 'price': 100000000, 'description': 'Skull'},
+            {'emoji': '☠️', 'price': 150000000, 'description': 'Skull and Crossbones'},
             {'emoji': '👑', 'price': 50000000000000000000, 'description': 'Royal Crown'}
         ]
     
@@ -52,6 +55,28 @@ class UserDatabase:
         user = users.setdefault(str(user_id), {})
         user['selected_emoji'] = emoji
         self._save_data()  # Fixed method name
+
+    def sync_user_info(user: User):
+        user_id = str(user.id)
+        if not db.user_exists(user.id):
+            return
+
+        stored = db.data["users"][user_id]
+        updated = False
+
+        current_username = user.username or ""
+        current_first_name = user.first_name
+
+        if stored.get("username", "") != current_username:
+            stored["username"] = current_username
+            updated = True
+
+        if stored.get("first_name", "") != current_first_name:
+            stored["first_name"] = current_first_name
+            updated = True
+
+        if updated:
+            db._save_data()
 
     def _load_data(self) -> Dict[str, Any]:
         """Load user data from JSON file."""
