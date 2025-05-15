@@ -828,11 +828,11 @@ def main() -> None:
     application = Application.builder().token(config.TOKEN).build()
 
     # Message Handler
-    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_groups))
     application.add_handler(
     MessageHandler(filters.ALL, auto_sync_user),
     group=-1
     )
+    application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_groups))
     
     # Command handlers
     application.add_handler(CommandHandler("start", start))
