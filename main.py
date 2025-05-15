@@ -14,6 +14,9 @@ from telegram.ext import (
 from game_logic import MinesGame
 from database import UserDatabase
 db = UserDatabase("users.json")
+import config
+import datetime
+from typing import Dict
 def sync_user_info(user: User):
     user_id = str(user.id)
     if not db.user_exists(user.id):
@@ -35,9 +38,6 @@ def sync_user_info(user: User):
 
     if updated:
         db._save_data()
-import config
-import datetime
-from typing import Dict
 
 # Set up logging
 logging.basicConfig(
