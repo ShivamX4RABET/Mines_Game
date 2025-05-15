@@ -214,7 +214,7 @@ async def start_game(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     except Exception as e:
         logger.error(f"/mine error: {e}")
-        await update.message.reply_text("Error starting game. Try again.")
+        await update.message.reply_text("Error starting game. Start the Bot first. Try again.")
 
 async def send_initial_board(
     update: Update, 
