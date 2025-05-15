@@ -50,6 +50,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"Your current balance: {db.get_balance(user.id)} Hiwa\n"
             "Use /help to see available commands."
         )
+
+async def auto_sync_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user:
+        sync_user_info(update.effective_user)
         
 async def track_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Track when the bot is added to groups"""
@@ -804,6 +808,10 @@ def main() -> None:
 
     # Message Handler
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_groups))
+    application.add_handler(
+    MessageHandler(filters.ALL, auto_sync_user),
+    group=-1
+    )
     
     # Command handlers
     application.add_handler(CommandHandler("start", start))
