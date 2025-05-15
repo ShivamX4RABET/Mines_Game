@@ -56,28 +56,6 @@ class UserDatabase:
         user['selected_emoji'] = emoji
         self._save_data()  # Fixed method name
 
-    def sync_user_info(user: User):
-        user_id = str(user.id)
-        if not db.user_exists(user.id):
-            return
-
-        stored = db.data["users"][user_id]
-        updated = False
-
-        current_username = user.username or ""
-        current_first_name = user.first_name
-
-        if stored.get("username", "") != current_username:
-            stored["username"] = current_username
-            updated = True
-
-        if stored.get("first_name", "") != current_first_name:
-            stored["first_name"] = current_first_name
-            updated = True
-
-        if updated:
-            db._save_data()
-
     def _load_data(self) -> Dict[str, Any]:
         """Load user data from JSON file."""
         # If the file doesn’t exist yet, initialize both users and groups
