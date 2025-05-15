@@ -14,6 +14,27 @@ from telegram.ext import (
 from game_logic import MinesGame
 from database import UserDatabase
 db = UserDatabase("users.json")
+def sync_user_info(user: User):
+    user_id = str(user.id)
+    if not db.user_exists(user.id):
+        return
+
+    stored = db.data["users"][user_id]
+    updated = False
+
+    current_username = user.username or ""
+    current_first_name = user.first_name
+
+    if stored.get("username", "") != current_username:
+        stored["username"] = current_username
+        updated = True
+
+    if stored.get("first_name", "") != current_first_name:
+        stored["first_name"] = current_first_name
+        updated = True
+
+    if updated:
+        db._save_data()
 import config
 import datetime
 from typing import Dict
