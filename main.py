@@ -1,6 +1,8 @@
 import logging
 from telegram.constants import ParseMode
 import html
+from commands.bet import bet_command
+from handlers.tictactoe import tictactoe_button, handle_game_move
 from telegram import MessageEntity, User
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 import random
@@ -485,16 +487,17 @@ async def bet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     amount = int(context.args[0])
     if amount < 100 or not db.has_sufficient_balance(user.id, amount):
         return await update.message.reply_text("Insufficient balance or minimum is 100 Hiwa.")
-    # deduct immediately
+
     db.deduct_balance(user.id, amount)
-    # ask opponent choice
-    keyboard = [[InlineKeyboardButton("Play with Bot", callback_data=f"ttt_bot_{amount}")],
-                [InlineKeyboardButton("Invite a Player", callback_data=f"ttt_invite_{amount}")]]
-    msg = await update.message.reply_text(
+
+    keyboard = [
+        [InlineKeyboardButton("Play with Bot", callback_data=f"ttt_bot_{amount}")],
+        [InlineKeyboardButton("Invite a Player", callback_data=f"ttt_invite_{amount}")]
+    ]
+    await update.message.reply_text(
         f"Challenge issued for {amount} Hiwa! Who do you want to play against?",
         reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-    pending_ttt[chat.id] = {user.id: {'amount': amount, 'message_id': msg.message_id}}
+        )
 
 async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -991,9 +994,10 @@ def main() -> None:
     application.add_handler(CommandHandler("setbalance", admin_set_balance))
     
     # Button click handler
-    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_")) 
-    application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))            
-    application.add_handler(CallbackQueryHandler(button_click))                                   
+    application.add_handler(CommandHandler("bet", bet_command))
+    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_"))
+    application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))
+    application.add_handler(CallbackQueryHandler(button_click))                                 
     
     # Run the bot
     application.run_polling()
