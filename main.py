@@ -497,6 +497,7 @@ async def bet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    await query.answer()
     data = query.data.split('_')  # ['ttt','bot','<amt>'] or ['ttt','invite','<amt>']
     challenger = query.from_user
     chat_id = query.message.chat_id
@@ -521,9 +522,16 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Invite a Player
     if data[1] == 'invite':
         keyboard = [[InlineKeyboardButton("Accept Challenge", callback_data=f"ttt_accept_{challenger.id}_{amount}")]]
-        await query.edit_message_text(
-            f"{challenger.full_name} challenges you to Tic-Tac-Toe for {amount} Hiwa!",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+        for member in await context.bot.get_chat_administrators(chat_id):
+        pending_ttt.setdefault(chat_id, {})[member.user.id] = {
+            'amount': amount,
+            'message_id': query.message.message_id,
+            'inviter_id': challenger.id
+        }
+
+    await query.edit_message_text(
+        f"{challenger.full_name} challenges you to Tic-Tac-Toe for {amount} Hiwa!",
+        reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return
     # Accept invitation
@@ -936,7 +944,8 @@ def main() -> None:
     
     # Button click handler
     application.add_handler(CallbackQueryHandler(button_click))
-    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_"))
+    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_"))
+    application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))
     
     # Run the bot
     application.run_polling()
