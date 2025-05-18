@@ -522,7 +522,7 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Invite a Player
     if data[1] == 'invite':
         keyboard = [[InlineKeyboardButton("Accept Challenge", callback_data=f"ttt_accept_{challenger.id}_{amount}")]]
-        for member in await context.bot.get_chat_administrators(chat_id):
+    for member in await context.bot.get_chat_administrators(chat_id):
         pending_ttt.setdefault(chat_id, {})[member.user.id] = {
             'amount': amount,
             'message_id': query.message.message_id,
