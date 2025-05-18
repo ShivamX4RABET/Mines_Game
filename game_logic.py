@@ -1,3 +1,4 @@
+from telegram import User
 from dataclasses import dataclass
 from typing import List, Tuple
 import random
