@@ -1,4 +1,4 @@
-from telegram import User
+from telegram import User, InlineKeyboardMarkup, InlineKeyboardButton
 from dataclasses import dataclass
 from typing import List, Tuple
 import random
