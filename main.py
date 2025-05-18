@@ -1,7 +1,6 @@
 import logging
 from telegram.constants import ParseMode
 import html
-from handlers.tictactoe import tictactoe_button, handle_game_move
 from telegram import MessageEntity, User
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 import random
