@@ -12,6 +12,7 @@ from telegram.ext import (
     filters
 )
 from game_logic import MinesGame
+from game_logic import TicTacToeGame
 from database import UserDatabase
 db = UserDatabase("users.json")
 import config
@@ -49,6 +50,11 @@ logger = logging.getLogger(__name__)
 # Changed from: user_games: Dict[int, MinesGame] = {}
 # New structure: {chat_id: {user_id: MinesGame}}
 user_games: Dict[int, Dict[int, MinesGame]] = {}
+# track pending invitations: {chat_id: {challenger_id: {'amount':int, 'message_id':int}}}
+pending_ttt: Dict[int, Dict[int, Dict]] = {}
+
+# track active games: {chat_id: {user1_id: TicTacToeGame}}
+active_ttt: Dict[int, Dict[int, TicTacToeGame]] = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
@@ -470,6 +476,77 @@ async def handle_game_over(
     except KeyError:
         pass
 
+async def bet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    chat = update.effective_chat
+    if len(context.args) != 1 or not context.args[0].isdigit():
+        return await update.message.reply_text("Usage: /bet <amount>")
+    amount = int(context.args[0])
+    if amount < 100 or not db.has_sufficient_balance(user.id, amount):
+        return await update.message.reply_text("Insufficient balance or minimum is 100 Hiwa.")
+    # deduct immediately
+    db.deduct_balance(user.id, amount)
+    # ask opponent choice
+    keyboard = [[InlineKeyboardButton("Play with Bot", callback_data=f"ttt_bot_{amount}")],
+                [InlineKeyboardButton("Invite a Player", callback_data=f"ttt_invite_{amount}")]]
+    msg = await update.message.reply_text(
+        f"Challenge issued for {amount} Hiwa! Who do you want to play against?",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    pending_ttt[chat.id] = {user.id: {'amount': amount, 'message_id': msg.message_id}}
+
+async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data.split('_')  # ['ttt','bot','<amt>'] or ['ttt','invite','<amt>']
+    challenger = query.from_user
+    chat_id = query.message.chat_id
+    entry = pending_ttt.get(chat_id, {}).get(challenger.id)
+    if not entry:
+        return await query.answer("No active invitation.", show_alert=True)
+    amount = entry['amount']
+    # Play with Bot
+    if data[1] == 'bot':
+        # configure game
+        game = TicTacToeGame(player1=challenger, player2_name="Bot", bet=amount)
+        active_ttt.setdefault(chat_id, {})[challenger.id] = game
+        fee = (2*amount) * 10 // 100
+        pool = 2*amount - fee
+        db.add_balance(config.OWNER_ID, fee)
+        board_markup = game.build_board_markup()
+        await query.edit_message_text(
+            f"❌: {challenger.full_name}\n⭕: Bot\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{random.choice(['You go first!','Bot goes first!'])}",
+            reply_markup=board_markup
+        )
+        return
+    # Invite a Player
+    if data[1] == 'invite':
+        keyboard = [[InlineKeyboardButton("Accept Challenge", callback_data=f"ttt_accept_{challenger.id}_{amount}")]]
+        await query.edit_message_text(
+            f"{challenger.full_name} challenges you to Tic-Tac-Toe for {amount} Hiwa!",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return
+    # Accept invitation
+    if data[1] == 'accept':
+        opp_id = int(data[2]); amt = int(data[3])
+        inviter = User(id=opp_id, first_name=db.data['users'][str(opp_id)]['first_name'], username=None)
+        opponent = query.from_user
+        if not db.has_sufficient_balance(opponent.id, amt):
+            return await query.answer("Insufficient balance.", show_alert=True)
+        db.deduct_balance(opponent.id, amt)
+        game = TicTacToeGame(player1=inviter, player2_name=opponent.full_name, bet=amt)
+        active_ttt.setdefault(chat_id, {})[inviter.id] = game
+        fee = (2*amt) * 10 // 100
+        pool = 2*amt - fee
+        db.add_balance(config.OWNER_ID, fee)
+        board_markup = game.build_board_markup()
+        await query.edit_message_text(
+            f"❌: {inviter.first_name}\n⭕: {opponent.full_name}\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{game.current_player.full_name} goes first!",
+            reply_markup=board_markup
+        )
+        return
+    # Game moves and ignore other patterns below
+
 # Modify the store command (remove keyboard)
 async def store(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show the emoji store."""
@@ -839,6 +916,7 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("balance", balance))
     application.add_handler(CommandHandler("mine", start_game))
+    application.add_handler(CommandHandler("bet", bet_command))
     application.add_handler(CommandHandler("cashout", cashout_command))
     application.add_handler(CommandHandler("end", end_game))
     application.add_handler(CommandHandler("daily", daily_bonus))
@@ -858,6 +936,7 @@ def main() -> None:
     
     # Button click handler
     application.add_handler(CallbackQueryHandler(button_click))
+    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_"))
     
     # Run the bot
     application.run_polling()
