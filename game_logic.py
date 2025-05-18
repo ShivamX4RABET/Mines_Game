@@ -80,11 +80,11 @@ class TicTacToeGame:
         return InlineKeyboardMarkup(kb)
 
     def bot_move(self):
-    """
-    Simple AI: choose a random empty cell. Returns (i,j).
-    """
-    empties = [(i,j) for i in range(3) for j in range(3) if not self.board[i][j]]
-    return random.choice(empties)
+        """
+        Simple AI: choose a random empty cell. Returns (i,j).
+        """
+        empties = [(i,j) for i in range(3) for j in range(3) if not self.board[i][j]]
+        return random.choice(empties)
 
     def make_move(self, i: int, j: int, user_id: int) -> str:
         if self.board[i][j] or self.winner:
