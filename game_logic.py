@@ -56,3 +56,41 @@ class MinesGame:
         for row in self.board:
             for tile in row:
                 tile.revealed = True
+
+class TicTacToeGame:
+    def __init__(self, player1: User, player2_name: str, bet: int):
+        self.player1 = player1
+        self.player2_name = player2_name
+        self.bet = bet
+        self.board = [[None]*3 for _ in range(3)]
+        # symbols
+        self.symbols = {player1.id: '❌', 'bot': '⭕', 'invitee': '⭕'}
+        self.current_player = random.choice([player1, 'bot' if player2_name=='Bot' else 'invitee'])
+        self.winner = None
+
+    def build_board_markup(self) -> InlineKeyboardMarkup:
+        kb = []
+        for i in range(3):
+            row = []
+            for j in range(3):
+                text = self.board[i][j] or ' '  # empty
+                row.append(InlineKeyboardButton(text, callback_data=f"ttt_move_{i}_{j}_{self.player1.id}"))
+            kb.append(row)
+        return InlineKeyboardMarkup(kb)
+
+    def make_move(self, i: int, j: int, user_id: int) -> str:
+        if self.board[i][j] or self.winner:
+            return 'invalid'
+        sym = self.symbols.get(user_id if isinstance(user_id,int) else 'bot')
+        self.board[i][j] = sym
+        if self.check_win(sym): self.winner = user_id
+        elif all(all(cell for cell in row) for row in self.board): self.winner = 'draw'
+        else:
+            # switch
+            self.current_player = self.player1 if self.current_player!=self.player1 else ('bot' if self.player2_name=='Bot' else 'invitee')
+        return 'ok'
+
+    def check_win(self, sym: str) -> bool:
+        # rows, cols, diags
+        lines = self.board + list(zip(*self.board)) + [ [self.board[i][i] for i in range(3)], [self.board[i][2-i] for i in range(3)] ]
+        return any(all(cell==sym for cell in line) for line in lines)
