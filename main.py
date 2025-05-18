@@ -3,6 +3,7 @@ from telegram.constants import ParseMode
 import html
 from telegram import MessageEntity, User
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+import random
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -500,7 +501,7 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data.split('_')  # ['ttt','bot','<amt>'] or ['ttt','invite','<amt>'] or ['ttt','accept','<inviter_id>','<amt>']
     challenger = query.from_user
-    chat_id = query.message.chat_id
+    chat_id = query.message.chat.id
 
     # Play with Bot
     if data[1] == 'bot':
@@ -990,9 +991,9 @@ def main() -> None:
     application.add_handler(CommandHandler("setbalance", admin_set_balance))
     
     # Button click handler
-    application.add_handler(CallbackQueryHandler(button_click))
-    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_"))
-    application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))
+    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_")) 
+    application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))            
+    application.add_handler(CallbackQueryHandler(button_click))                                   
     
     # Run the bot
     application.run_polling()
