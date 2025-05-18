@@ -533,7 +533,7 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{challenger.full_name} challenges you to Tic-Tac-Toe for {amount} Hiwa!",
         reply_markup=InlineKeyboardMarkup(keyboard)
         )
-        return
+    return
     # Accept invitation
     if data[1] == 'accept':
         opp_id = int(data[2]); amt = int(data[3])
