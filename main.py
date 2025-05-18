@@ -498,62 +498,109 @@ async def bet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    data = query.data.split('_')  # ['ttt','bot','<amt>'] or ['ttt','invite','<amt>']
+    data = query.data.split('_')  # ['ttt','bot','<amt>'] or ['ttt','invite','<amt>'] or ['ttt','accept','<inviter_id>','<amt>']
     challenger = query.from_user
     chat_id = query.message.chat_id
-    entry = pending_ttt.get(chat_id, {}).get(challenger.id)
-    if not entry:
-        return await query.answer("No active invitation.", show_alert=True)
-    amount = entry['amount']
+
     # Play with Bot
     if data[1] == 'bot':
-        # configure game
+        amount = int(data[2])
         game = TicTacToeGame(player1=challenger, player2_name="Bot", bet=amount)
         active_ttt.setdefault(chat_id, {})[challenger.id] = game
-        fee = (2*amount) * 10 // 100
-        pool = 2*amount - fee
+        fee = (2 * amount) * 10 // 100
+        pool = 2 * amount - fee
         db.add_balance(config.OWNER_ID, fee)
         board_markup = game.build_board_markup()
         await query.edit_message_text(
-            f"❌: {challenger.full_name}\n⭕: Bot\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{random.choice(['You go first!','Bot goes first!'])}",
+            f"❌: {challenger.full_name}\n⭕: Bot\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{random.choice(['You go first!', 'Bot goes first!'])}",
             reply_markup=board_markup
         )
         return
+
     # Invite a Player
     if data[1] == 'invite':
+        amount = int(data[2])
         keyboard = [[InlineKeyboardButton("Accept Challenge", callback_data=f"ttt_accept_{challenger.id}_{amount}")]]
-    for member in await context.bot.get_chat_administrators(chat_id):
-        pending_ttt.setdefault(chat_id, {})[member.user.id] = {
-            'amount': amount,
-            'message_id': query.message.message_id,
-            'inviter_id': challenger.id
-        }
+        for member in await context.bot.get_chat_administrators(chat_id):
+            pending_ttt.setdefault(chat_id, {})[member.user.id] = {
+                'amount': amount,
+                'message_id': query.message.message_id,
+                'inviter_id': challenger.id
+            }
 
-    await query.edit_message_text(
-        f"{challenger.full_name} challenges you to Tic-Tac-Toe for {amount} Hiwa!",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(
+            f"{challenger.full_name} challenges you to Tic-Tac-Toe for {amount} Hiwa!",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
-    return
+        return
+
     # Accept invitation
     if data[1] == 'accept':
-        opp_id = int(data[2]); amt = int(data[3])
+        opp_id = int(data[2])
+        amt = int(data[3])
         inviter = User(id=opp_id, first_name=db.data['users'][str(opp_id)]['first_name'], username=None)
         opponent = query.from_user
+
         if not db.has_sufficient_balance(opponent.id, amt):
             return await query.answer("Insufficient balance.", show_alert=True)
+
         db.deduct_balance(opponent.id, amt)
         game = TicTacToeGame(player1=inviter, player2_name=opponent.full_name, bet=amt)
         active_ttt.setdefault(chat_id, {})[inviter.id] = game
-        fee = (2*amt) * 10 // 100
-        pool = 2*amt - fee
+        fee = (2 * amt) * 10 // 100
+        pool = 2 * amt - fee
         db.add_balance(config.OWNER_ID, fee)
         board_markup = game.build_board_markup()
+
         await query.edit_message_text(
             f"❌: {inviter.first_name}\n⭕: {opponent.full_name}\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{game.current_player.full_name} goes first!",
             reply_markup=board_markup
         )
         return
-    # Game moves and ignore other patterns below
+
+
+async def handle_game_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    data = query.data.split('_')  # format: ['ttt', 'move', i, j, player1_id]
+    i, j, player1_id = int(data[2]), int(data[3]), int(data[4])
+    chat_id = query.message.chat_id
+    user = query.from_user
+
+    game = active_ttt.get(chat_id, {}).get(player1_id)
+    if not game or game.winner:
+        return await query.answer("No active game or already over.", show_alert=True)
+
+    if user.id != game.current_player.id:
+        return await query.answer("Not your turn!", show_alert=True)
+
+    result = game.make_move(i, j, user.id)
+    if result == 'invalid':
+        return await query.answer("Invalid move.", show_alert=True)
+
+    board_markup = game.build_board_markup()
+
+    if game.winner == user.id:
+        winnings = game.bet * 2 - ((2 * game.bet) * 10 // 100)
+        db.add_balance(user.id, winnings)
+        await query.edit_message_text(
+            f"{user.full_name} wins!\nWinnings: {winnings} Hiwa",
+            reply_markup=None
+        )
+        del active_ttt[chat_id][player1_id]
+
+    elif game.winner == 'draw':
+        db.add_balance(game.player1.id, game.bet)
+        if game.player2_name != 'Bot':
+            opponent_id = [uid for uid in game.symbols if uid != game.player1.id][0]
+            db.add_balance(opponent_id, game.bet)
+        await query.edit_message_text("Game is a draw!", reply_markup=None)
+        del active_ttt[chat_id][player1_id]
+
+    else:
+        await query.edit_message_text(
+            f"❌: {game.player1.full_name}\n⭕: {game.player2_name}\nNext: {game.current_player.full_name}",
+            reply_markup=board_markup
+    )
 
 # Modify the store command (remove keyboard)
 async def store(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
