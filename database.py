@@ -182,8 +182,14 @@ class UserDatabase:
     def get_all_users(self) -> List[int]:
         """Get all user IDs."""
         return [int(user_id) for user_id in self.data["users"].keys()]
-    
-    def reset_all_data(self) -> None:
-        """Reset all user data."""
-        self.data = {"users": {}}
+
+    def reset_all_balances_to_100(self) -> None:
+        """Reset every user's balance to 100 without deleting any user data."""
+        # Ensure there is a users dict
+        users = self.data.get("users", {})
+        for user_id, user_info in users.items():
+            # Set each user's balance to 100
+            user_info["balance"] = 100
+
+        # Persist the change
         self._save_data()
