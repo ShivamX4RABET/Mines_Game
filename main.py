@@ -922,14 +922,15 @@ async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.message.reply_text(f"Broadcast sent to {len(all_chats)} chats (users and groups).")
 
 async def admin_reset_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Admin command to reset all user data."""
+    """Admin command to reset all users’ balances to 100."""
     user_id = update.effective_user.id
     if user_id not in config.ADMINS:
         await update.message.reply_text("This command is for admins only.")
         return
-    
-    db.reset_all_data()
-    await update.message.reply_text("All user data has been reset.")
+
+    # Call the new method that preserves all user data but sets balance = 100
+    db.reset_all_balances_to_100()
+    await update.message.reply_text("All users’ balances have been reset to 100.")
 
 async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to set a user's balance."""
@@ -988,7 +989,7 @@ def main() -> None:
     
     # Admin commands
     application.add_handler(CommandHandler("broadcast", admin_broadcast))
-    application.add_handler(CommandHandler("resetdata", admin_reset_data))
+    application.add_handler(CommandHandler("reset", admin_reset_data))
     application.add_handler(CommandHandler("setbalance", admin_set_balance))
     
     # Button click handler
