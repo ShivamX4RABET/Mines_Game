@@ -59,14 +59,21 @@ class MinesGame:
                 tile.revealed = True
 
 class TicTacToeGame:
-    def __init__(self, player1: User, player2_name: str, bet: int):
+    def __init__(self, player1: User, player2: User, bet: int, is_bot: bool=False):
         self.player1 = player1
-        self.player2_name = player2_name
-        self.bet = bet
-        self.board = [[None]*3 for _ in range(3)]
-        # symbols
-        self.symbols = {player1.id: '❌', 'bot': '⭕', 'invitee': '⭕'}
-        self.current_player = random.choice([player1, 'bot' if player2_name=='Bot' else 'invitee'])
+        self.player2 = player2             # ALWAYS a User object
+        self.is_bot  = is_bot              # True when player2 is the Bot
+        self.bet     = bet
+        self.board   = [[None]*3 for _ in range(3)]
+        
+        # map actual user IDs → symbols
+        self.symbols = {
+            self.player1.id: '❌',
+            self.player2.id: '⭕',
+        }
+
+        # pick who goes first
+        self.current_player = random.choice([self.player1, self.player2])
         self.winner = None
 
     def build_board_markup(self) -> InlineKeyboardMarkup:
