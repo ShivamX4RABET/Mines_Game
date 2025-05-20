@@ -669,7 +669,7 @@ async def buy_emoji(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /buy command"""
     user = update.effective_user
     if not context.args:
-        awat update.message.reply_text("Usage: /buy <emoji>\nExample: /buy 👑")
+        await update.message.reply_text("Usage: /buy <emoji>\nExample: /buy 👑")
         return
         
     emoji = ' '.join(context.args)
