@@ -513,10 +513,25 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pool = 2 * amount - fee
         db.add_balance(config.OWNER_ID, fee)
         board_markup = game.build_board_markup()
+
         await query.edit_message_text(
-            f"❌: {challenger.full_name}\n⭕: Bot\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{random.choice(['You go first!', 'Bot goes first!'])}",
+            f"❌: {challenger.full_name}\n"
+            f"⭕: Bot\n"
+            f"10% fee: {fee} Hiwa\n"
+            f"Pool: {pool} Hiwa\n"
+            f"{game.current_player.full_name} goes first!",
             reply_markup=board_markup
         )
+
+        # Bot makes the first move if it's the bot's turn
+        if game.is_bot and game.current_player.id == BOT_ID:
+            i, j = game.bot_move()
+            game.make_move(i, j, game.player2.id)  # bot is player2
+            board_markup = game.build_board_markup()
+            await query.edit_message_text(
+                f"Bot played at ({i + 1},{j + 1}). Your turn!",
+                reply_markup=board_markup
+            )
         return
 
     # Invite a Player
@@ -547,7 +562,10 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return await query.answer("Insufficient balance.", show_alert=True)
 
         db.deduct_balance(opponent.id, amt)
-        game = TicTacToeGame(player1=inviter, player2_name=opponent.full_name, bet=amt)
+        game = TicTacToeGame(player1=inviter,
+                     player2=opponent,
+                     bet=amt,
+                     is_bot=False)
         active_ttt.setdefault(chat_id, {})[inviter.id] = game
         fee = (2 * amt) * 10 // 100
         pool = 2 * amt - fee
@@ -555,11 +573,14 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         board_markup = game.build_board_markup()
 
         await query.edit_message_text(
-            f"❌: {inviter.first_name}\n⭕: {opponent.full_name}\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{game.current_player.full_name} goes first!",
+            f"❌: {inviter.first_name}\n"
+            f"⭕: {opponent.full_name}\n"
+            f"10% fee: {fee} Hiwa\n"
+            f"Pool: {pool} Hiwa\n"
+            f"{game.current_player.full_name} goes first!",
             reply_markup=board_markup
         )
         return
-
 
 async def handle_game_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -589,6 +610,7 @@ async def handle_game_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=None
         )
         del active_ttt[chat_id][player1_id]
+        return
 
     elif game.winner == 'draw':
         db.add_balance(game.player1.id, game.bet)
@@ -597,12 +619,33 @@ async def handle_game_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db.add_balance(opponent_id, game.bet)
         await query.edit_message_text("Game is a draw!", reply_markup=None)
         del active_ttt[chat_id][player1_id]
+        return
 
-    else:
-        await query.edit_message_text(
-            f"❌: {game.player1.full_name}\n⭕: {game.player2_name}\nNext: {game.current_player.full_name}",
-            reply_markup=board_markup
+    # Update board for human opponent or before bot moves
+    await query.edit_message_text(
+        f"❌: {game.player1.full_name}\n⭕: {game.player2_name}\nNext: {game.current_player.full_name}",
+        reply_markup=board_markup
     )
+
+    # Bot move, if it's bot's turn now
+    if game.is_bot and game.current_player.id == BOT_ID and not game.winner:
+        i, j = game.bot_move()
+        game.make_move(i, j, game.player2.id)
+        board_markup = game.build_board_markup()
+
+        if game.winner == game.player2.id:
+            await query.edit_message_text("Bot wins! Better luck next time.", reply_markup=None)
+            active_ttt[chat_id].pop(player1_id, None)
+        elif game.winner == 'draw':
+            db.add_balance(game.player1.id, game.bet)
+            db.add_balance(game.player2.id, game.bet)
+            await query.edit_message_text("Game is a draw!", reply_markup=None)
+            active_ttt[chat_id].pop(player1_id, None)
+        else:
+            await query.edit_message_text(
+                f"Bot played at ({i+1},{j+1}). Your turn!",
+                reply_markup=board_markup
+        )
 
 # Modify the store command (remove keyboard)
 async def store(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -626,7 +669,7 @@ async def buy_emoji(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /buy command"""
     user = update.effective_user
     if not context.args:
-        await update.message.reply_text("Usage: /buy <emoji>\nExample: /buy 👑")
+        awat update.message.reply_text("Usage: /buy <emoji>\nExample: /buy 👑")
         return
         
     emoji = ' '.join(context.args)
