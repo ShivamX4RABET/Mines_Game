@@ -506,33 +506,24 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Play with Bot
     if data[1] == 'bot':
-        amount = int(data[2])
-        game = TicTacToeGame(player1=challenger, player2_name="Bot", bet=amount)
-        active_ttt.setdefault(chat_id, {})[challenger.id] = game
-        fee = (2 * amount) * 10 // 100
-        pool = 2 * amount - fee
-        db.add_balance(config.OWNER_ID, fee)
-        board_markup = game.build_board_markup()
+    amount = int(data[2])
+    game = TicTacToeGame(player1=challenger, player2_name="Bot", bet=amount)
+    active_ttt.setdefault(chat_id, {})[challenger.id] = game
+    fee = (2 * amount) * 10 // 100
+    pool = 2 * amount - fee
+    db.add_balance(config.OWNER_ID, fee)
 
-        await query.edit_message_text(
-            f"❌: {challenger.full_name}\n"
-            f"⭕: Bot\n"
-            f"10% fee: {fee} Hiwa\n"
-            f"Pool: {pool} Hiwa\n"
-            f"{game.current_player.full_name} goes first!",
-            reply_markup=board_markup
-        )
+    # If bot goes first, make its move immediately
+    if game.current_player == 'bot':
+        bi, bj = game.bot_move()
+        game.make_move(bi, bj, 'bot')
 
-        # Bot makes the first move if it's the bot's turn
-        if game.is_bot and game.current_player.id == BOT_ID:
-            i, j = game.bot_move()
-            game.make_move(i, j, game.player2.id)  # bot is player2
-            board_markup = game.build_board_markup()
-            await query.edit_message_text(
-                f"Bot played at ({i + 1},{j + 1}). Your turn!",
-                reply_markup=board_markup
-            )
-        return
+    board_markup = game.build_board_markup()
+    await query.edit_message_text(
+        f"❌: {challenger.full_name}\n⭕: Bot\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{game.current_player.full_name if game.current_player != 'bot' else 'Bot'} goes next!",
+        reply_markup=board_markup
+    )
+    return
 
     # Invite a Player
     if data[1] == 'invite':
@@ -540,9 +531,10 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = [[InlineKeyboardButton("Accept Challenge", callback_data=f"ttt_accept_{challenger.id}_{amount}")]]
         for member in await context.bot.get_chat_administrators(chat_id):
             pending_ttt.setdefault(chat_id, {})[member.user.id] = {
-                'amount': amount,
-                'message_id': query.message.message_id,
-                'inviter_id': challenger.id
+            'amount': amount,
+            'message_id': query.message.message_id,
+            'inviter_id': challenger.id,
+            'inviter_name': challenger.full_name
             }
 
         await query.edit_message_text(
@@ -554,30 +546,28 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Accept invitation
     if data[1] == 'accept':
         opp_id = int(data[2])
-        amt = int(data[3])
-        inviter = User(id=opp_id, first_name=db.data['users'][str(opp_id)]['first_name'], username=None)
         opponent = query.from_user
+        invitation = pending_ttt.get(chat_id, {}).get(opponent.id)
+    if not invitation:
+        return await query.answer("Challenge not found.", show_alert=True)
 
-        if not db.has_sufficient_balance(opponent.id, amt):
-            return await query.answer("Insufficient balance.", show_alert=True)
+        inviter_id = invitation["inviter_id"]
+        inviter_name = invitation["inviter_name"]
+
+    if not db.has_sufficient_balance(opponent.id, amt):
+        return await query.answer("Insufficient balance.", show_alert=True)
 
         db.deduct_balance(opponent.id, amt)
-        game = TicTacToeGame(player1=inviter,
-                     player2=opponent,
-                     bet=amt,
-                     is_bot=False)
-        active_ttt.setdefault(chat_id, {})[inviter.id] = game
+        game = TicTacToeGame(player1=opponent, player2_name=inviter_name, bet=amt)
+        active_ttt.setdefault(chat_id, {})[opponent.id] = game = int(data[3])
+        
         fee = (2 * amt) * 10 // 100
         pool = 2 * amt - fee
         db.add_balance(config.OWNER_ID, fee)
         board_markup = game.build_board_markup()
 
         await query.edit_message_text(
-            f"❌: {inviter.first_name}\n"
-            f"⭕: {opponent.full_name}\n"
-            f"10% fee: {fee} Hiwa\n"
-            f"Pool: {pool} Hiwa\n"
-            f"{game.current_player.full_name} goes first!",
+            f"❌: {opponent.full_name}\n⭕: {inviter_name}\n10% fee: {fee} Hiwa\nPool: {pool} Hiwa\n{game.current_player.full_name if game.current_player != 'invitee' else inviter_name} goes first!",
             reply_markup=board_markup
         )
         return
