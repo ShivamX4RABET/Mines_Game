@@ -506,12 +506,12 @@ async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Play with Bot
     if data[1] == 'bot':
-    amount = int(data[2])
-    game = TicTacToeGame(player1=challenger, player2_name="Bot", bet=amount)
-    active_ttt.setdefault(chat_id, {})[challenger.id] = game
-    fee = (2 * amount) * 10 // 100
-    pool = 2 * amount - fee
-    db.add_balance(config.OWNER_ID, fee)
+        amount = int(data[2])
+        game = TicTacToeGame(player1=challenger, player2_name="Bot", bet=amount)
+        active_ttt.setdefault(chat_id, {})[challenger.id] = game
+        fee = (2 * amount) * 10 // 100
+        pool = 2 * amount - fee
+        db.add_balance(config.OWNER_ID, fee)
 
     # If bot goes first, make its move immediately
     if game.current_player == 'bot':
