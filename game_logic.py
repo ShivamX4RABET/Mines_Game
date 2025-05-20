@@ -59,18 +59,44 @@ class MinesGame:
                 tile.revealed = True
 
 class TicTacToeGame:
-    def __init__(self, player1: User, player2: User, bet: int, is_bot: bool=False):
+    def __init__(self, player1: User, player2: User, bet: int, is_bot=False):
         self.player1 = player1
-        self.player2 = player2             # ALWAYS a User object
-        self.is_bot  = is_bot              # True when player2 is the Bot
-        self.bet     = bet
-        self.board   = [[None]*3 for _ in range(3)]
-        
-        # map actual user IDs → symbols
+        self.player2 = player2
+        self.is_bot = is_bot
+        self.bet = bet
+        self.board = [[None]*3 for _ in range(3)]
         self.symbols = {
-            self.player1.id: '❌',
-            self.player2.id: '⭕',
+            player1.id: '❌',
+            player2.id: '⭕'
         }
+        self.current_player = random.choice([player1, player2])
+        self.winner = None
+
+    def make_move(self, i: int, j: int, player_id: int) -> bool:
+        if self.board[i][j] or self.winner:
+            return False
+        self.board[i][j] = self.symbols[player_id]
+        # Check win
+        if self.check_win(self.symbols[player_id]):
+            self.winner = player_id
+        elif all(all(row) for row in self.board):
+            self.winner = 'draw'
+        else:
+            self.current_player = self.player2 if self.current_player == self.player1 else self.player1
+        return True
+
+    def check_win(self, symbol: str) -> bool:
+        # Check rows, columns, diagonals
+        for row in self.board:
+            if all(cell == symbol for cell in row):
+                return True
+        for col in range(3):
+            if all(self.board[row][col] == symbol for row in range(3)):
+                return True
+        if all(self.board[i][i] == symbol for i in range(3)) or \
+           all(self.board[i][2-i] == symbol for i in range(3)):
+            return True
+        return False
 
         # pick who goes first
         self.current_player = random.choice([self.player1, self.player2])
@@ -92,20 +118,4 @@ class TicTacToeGame:
         """
         empties = [(i,j) for i in range(3) for j in range(3) if not self.board[i][j]]
         return random.choice(empties)
-
-    def make_move(self, i: int, j: int, user_id: int) -> str:
-        if self.board[i][j] or self.winner:
-            return 'invalid'
-        sym = self.symbols.get(user_id if isinstance(user_id,int) else 'bot')
-        self.board[i][j] = sym
-        if self.check_win(sym): self.winner = user_id
-        elif all(all(cell for cell in row) for row in self.board): self.winner = 'draw'
-        else:
-            # switch
-            self.current_player = self.player1 if self.current_player!=self.player1 else ('bot' if self.player2_name=='Bot' else 'invitee')
-        return 'ok'
-
-    def check_win(self, sym: str) -> bool:
-        # rows, cols, diags
-        lines = self.board + list(zip(*self.board)) + [ [self.board[i][i] for i in range(3)], [self.board[i][2-i] for i in range(3)] ]
-        return any(all(cell==sym for cell in line) for line in lines)
+        
