@@ -4,6 +4,7 @@ import html
 from telegram import MessageEntity, User
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 import random
+from telegram.ext import JobQueue
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -1008,7 +1009,12 @@ async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 def main() -> None:
     """Start the bot."""
-    application = Application.builder().token(config.TOKEN).build()
+    application = (
+    Application.builder()
+    .token(config.TOKEN)
+    .job_queue(JobQueue())
+    .build()
+    )
 
     # Message Handler
     application.add_handler(
@@ -1036,7 +1042,12 @@ def main() -> None:
     application.add_handler(CommandHandler("gift", gift))
 
     #TicTacToe Time run out for invitation
-    application.job_queue.run_repeating(cleanup_invitations, interval=60)
+    application.job_queue.scheduler.add_job(
+    cleanup_invitations,
+    'interval',
+    minutes=2,
+    args=[application]
+    )
     
     # Admin commands
     application.add_handler(CommandHandler("broadcast", admin_broadcast))
