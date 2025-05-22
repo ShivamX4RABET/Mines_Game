@@ -601,7 +601,7 @@ async def handle_game_move(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data.split('_')
     i, j, player1_id = int(data[2]), int(data[3]), int(data[4])
-    chat_id = query.message.chat_id
+    chat_id = query.message.chat.id
     user = query.from_user
 
     game = active_ttt.get(chat_id, {}).get(player1_id)
@@ -1058,7 +1058,9 @@ def main() -> None:
     application.add_handler(CommandHandler("bet", bet_command))
     application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_"))
     application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))
-    application.add_handler(CallbackQueryHandler(button_click))                                 
+    application.add_handler(
+    CallbackQueryHandler(button_click, pattern=r"^(reveal|cashout)_")
+    )                                 
     
     # Run the bot
     application.run_polling()
