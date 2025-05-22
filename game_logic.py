@@ -107,7 +107,7 @@ class TicTacToeGame:
         for i in range(3):
             row = []
             for j in range(3):
-                text = self.board[i][j] or ' '  # empty
+                text = self.board[i][j] or '▫️'
                 row.append(InlineKeyboardButton(text, callback_data=f"ttt_move_{i}_{j}_{self.player1.id}"))
             kb.append(row)
         return InlineKeyboardMarkup(kb)
