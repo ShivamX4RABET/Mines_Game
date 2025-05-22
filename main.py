@@ -501,6 +501,9 @@ async def bet_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def tictactoe_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    
+    logger.info("👾 ttt callback data = %r", query.data)
+    
     data = query.data.split('_')
     challenger = query.from_user
     chat_id = query.message.chat.id
@@ -1058,9 +1061,14 @@ def main() -> None:
     application.add_handler(CommandHandler("bet", bet_command))
     application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_"))
     application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))
-    application.add_handler(
-    CallbackQueryHandler(button_click, pattern=r"^(reveal|cashout)_")
-    )                                 
+    application.add_handler(CommandHandler("bet", bet_command))
+
+    # --- TicTacToe handlers ---
+    application.add_handler(CallbackQueryHandler(tictactoe_button, pattern=r"^ttt_(bot|invite|accept)_"))
+    application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))
+
+    # --- Mines handlers ---
+    application.add_handler(CallbackQueryHandler(button_click, pattern=r"^(reveal|cashout)_"))
     
     # Run the bot
     application.run_polling()
