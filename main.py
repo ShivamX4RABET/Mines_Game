@@ -882,6 +882,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             safe_name = html.escape(first_name or "Unknown")  # Extra safety
             mention = f'<a href="tg://user?id={uid}">{safe_name}</a>'
             lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
+            lines.append("")  # Adds a blank line
 
         await update.message.reply_text(
             "\n".join(lines),
