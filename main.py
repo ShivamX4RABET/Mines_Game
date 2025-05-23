@@ -874,21 +874,24 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text("🏆 Leaderboard is empty!")
             return
 
-        lines = []  # Removed title from inside; you can keep it outside if needed
+        lines = ["<b>🏆 TOP PLAYERS 🏆</b>\n"]  # Title with spacing
+
         medals = ["🥇", "🥈", "🥉"]
 
         for i, (uid, username, first_name, balance) in enumerate(top, start=1):
             prefix = medals[i - 1] if i <= 3 else f"{i}."
             safe_name = html.escape(first_name or "Unknown")
             mention = f'<a href="tg://user?id={uid}">{safe_name}</a>'
-            lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa")
-            lines.append("\u00A0")  # Adds a visible line break
+            lines.append(f"{prefix} {mention} — <b>{balance:,}</b> Hiwa\n")  # <- Extra \n here
+
+        message = "\n".join(lines)
 
         await update.message.reply_text(
-            "🏆 <b>TOP PLAYERS</b> 🏆\n\n" + "\n".join(lines),
+            message,
             parse_mode=ParseMode.HTML,
             disable_web_page_preview=True
         )
+
     except Exception as e:
         logger.error(f"Leaderboard error: {e}")
         await update.message.reply_text("❌ Failed to load leaderboard. Please try again!")
