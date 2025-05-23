@@ -23,6 +23,7 @@ from typing import Dict
 def sync_user_info(user: User):
     user_id = str(user.id)
     if not db.user_exists(user.id):
+        db.add_user(user.id, user.username, user.first_name)
         return
 
     stored = db.data["users"][user_id]
@@ -48,6 +49,8 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+logging.getLogger("telegram.bot").setLevel(logging.WARNING)
 
 # Changed from: user_games: Dict[int, MinesGame] = {}
 # New structure: {chat_id: {user_id: MinesGame}}
@@ -892,52 +895,63 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def gift(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /gift command."""
     if len(context.args) < 2:
-        await update.message.reply_text("sage: /gift @username <amount>")
+        await update.message.reply_text("Usage: /gift @username <amount>")
         return
-    
+
     try:
         recipient_username = context.args[0].lstrip('@')
         amount = int(context.args[1])
     except (ValueError, IndexError):
         await update.message.reply_text("Usage: /gift @username <amount>")
         return
-    
+
     if amount < 1:
         await update.message.reply_text("Amount must be at least 1 Hiwa.")
         return
-    
-    sender_id = update.effective_user.id
+
+    sender = update.effective_user
+    sender_id = sender.id
+
+    logger.info(f"GIFT CMD by {sender.username} -> @{recipient_username} | {amount} Hiwa")
+
     recipient_id = db.get_user_id_by_username(recipient_username)
-    
+
     if not recipient_id:
-        await update.message.reply_text(f"User @{recipient_username} not found.")
+        logger.warning(f"User not found by username: {recipient_username}")
+        await update.message.reply_text(
+            f"❌ User '@{recipient_username}' not found. "
+            "Make sure they have started the bot and their username is visible."
+        )
         return
-    
+
     if sender_id == recipient_id:
-        await update.message.reply_text("You can't gift yourself!")
+        await update.message.reply_text("❌ You can't gift yourself!")
         return
-    
+
     if not db.has_sufficient_balance(sender_id, amount):
-        await update.message.reply_text("Insufficient balance for this gift.")
+        await update.message.reply_text("❌ Insufficient balance for this gift.")
         return
-    
+
+    # Transfer funds
     db.deduct_balance(sender_id, amount)
     db.add_balance(recipient_id, amount)
-    
+
     sender_balance = db.get_balance(sender_id)
     recipient_balance = db.get_balance(recipient_id)
-    
+
     await update.message.reply_text(
         f"🎁 You gifted {amount} Hiwa to @{recipient_username}!\n"
         f"Your new balance: {sender_balance} Hiwa"
     )
-    
-    # Notify recipient
-    await context.bot.send_message(
-        chat_id=recipient_id,
-        text=f"🎁 You received {amount} Hiwa from @{update.effective_user.username}!\n"
-             f"New balance: {recipient_balance} Hiwa"
-    )
+
+    try:
+        await context.bot.send_message(
+            chat_id=recipient_id,
+            text=f"🎁 You received {amount} Hiwa from @{sender.username or sender.first_name}!\n"
+                 f"New balance: {recipient_balance} Hiwa"
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify recipient: {e}")
 
 async def admin_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Admin command to broadcast a message to all users and groups."""
@@ -1021,9 +1035,10 @@ def main() -> None:
 
     # Message Handler
     application.add_handler(
-    MessageHandler(filters.ALL, auto_sync_user),
+    MessageHandler(filters.ALL & ~filters.StatusUpdate(), auto_sync_user),
     group=-1
     )
+    
     application.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, track_groups))
     
     # Command handlers
