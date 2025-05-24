@@ -16,7 +16,7 @@ class UserDatabase:
             {'emoji': '⭐', 'price': 1000, 'description': 'Shiny Star'},
             {'emoji': '🎁', 'price': 5000, 'description': 'Gift Box'},
             {'emoji': '🌸', 'price': 10000, 'description': 'Cherry Blossom'},
-            {'emoji': '❤️', 'price': 15000, 'description': 'Heart of Love'},
+            {'emoji': '🏆', 'price': 1500000000000000000000000000000000000000000000000, 'description': 'Top 1'},
             {'emoji': '🌺', 'price': 25000, 'description': 'Hibiscus'},
             {'emoji': '👻', 'price': 50000, 'description': 'Ghost'},
             {'emoji': '💀', 'price': 100000, 'description': 'Skull'},
