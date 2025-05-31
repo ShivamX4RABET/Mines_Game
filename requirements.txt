@@ -1,8 +1,2 @@
 python-telegram-bot==20.3
 python-dotenv 
-python-telegram-bot[job-queue]
-flask
-gunicorn
-requests
-sqlalchemy
-psycopg2-binary
