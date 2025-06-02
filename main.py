@@ -1039,7 +1039,10 @@ def main() -> None:
 
     # Message Handler
     application.add_handler(
-    MessageHandler(filters.ALL & ~filters.StatusUpdate(), auto_sync_user),
+    MessageHandler(
+        filters.ALL & (~filters.StatusUpdate.ALL),
+        auto_sync_user
+    ),
     group=-1
     )
     
