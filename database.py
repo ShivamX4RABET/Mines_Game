@@ -18,10 +18,10 @@ class UserDatabase:
             {'emoji': '🌸', 'price': 10000, 'description': 'Cherry Blossom'},
             {'emoji': '🌺', 'price': 25000, 'description': 'Hibiscus'},
             {'emoji': '👻', 'price': 50000, 'description': 'Ghost'},
+            {'emoji': '❤️', 'price': 1000, 'description': 'Red Heart'},
             {'emoji': '💀', 'price': 100000, 'description': 'Skull'},
             {'emoji': '💥', 'price': 500000, 'description': 'Boom Prank'},
-            {'emoji': '👑', 'price': 50000000000000, 'description': 'Royal Crown'},
-            {'emoji': '🏆', 'price': 150000000000000000000000000000000000, 'description': 'Top 1'}
+            {'emoji': '👑', 'price': 50000000000000, 'description': 'Royal Crown'}
         ]
     
     def get_emoji_store(self) -> list:
