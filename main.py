@@ -4,7 +4,6 @@ import html
 from telegram import MessageEntity, User
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 import random
-from telegram.ext import JobQueue
 from telegram.ext import (
     Application,
     CommandHandler,
