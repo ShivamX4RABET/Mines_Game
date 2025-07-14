@@ -848,7 +848,6 @@ def main() -> None:
     application = (
     Application.builder()
     .token(config.TOKEN)
-    .job_queue(JobQueue())
     .build()
     )
 
