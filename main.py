@@ -883,7 +883,6 @@ def main() -> None:
     application.add_handler(CommandHandler("broadcast", admin_broadcast))
     application.add_handler(CommandHandler("reset", admin_reset_data))
     application.add_handler(CommandHandler("setbalance", admin_set_balance))
-    application.add_handler(CallbackQueryHandler(handle_game_move, pattern=r"^ttt_move_"))
 
     # --- Mines handlers ---
     application.add_handler(CallbackQueryHandler(button_click, pattern=r"^(reveal|cashout)_"))
